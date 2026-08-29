@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 from datetime import datetime, timedelta, timezone
 
 from playwright.sync_api import sync_playwright
@@ -16,6 +17,12 @@ MONTHS_AHEAD = 12
 JST = timezone(timedelta(hours=9))
 
 CACHE_FILE = "schedule.json"
+
+# 直近何日前まで詳細ページを再確認するか
+REFRESH_PAST_DAYS = 7
+
+# 前回件数の何割未満なら異常とみなすか
+MIN_EVENT_RATIO = 0.30
 
 
 CATEGORIES = [
@@ -136,15 +143,17 @@ def normalize_url(href):
     return BASE + "/" + href
 
 
-def load_cache():
+def load_existing_data():
     """
-    既存の schedule.json を読み込み、
-    URLをキーにした辞書を作る。
+    既存 schedule.json を読み込む。
+    キャッシュ利用と安全装置の両方に使う。
     """
 
     if not os.path.exists(CACHE_FILE):
-        print("No cache file found.")
-        return {}
+        print("No existing schedule.json found.")
+        return {
+            "events": []
+        }
 
     try:
         with open(
@@ -156,26 +165,43 @@ def load_cache():
 
         events = data.get("events", [])
 
-        cache = {}
-
-        for event in events:
-            url = event.get("url", "")
-
-            if url:
-                cache[url] = event
-
         print(
-            f"Loaded cache: {len(cache)} events"
+            f"Loaded existing data: {len(events)} events"
         )
 
-        return cache
+        return data
 
     except Exception as e:
         print(
-            f"Cache load error: {e}"
+            f"Existing JSON load error: {e}"
         )
 
-        return {}
+        return {
+            "events": []
+        }
+
+
+def build_cache(existing_data):
+    """
+    URLをキーに既存イベントを引けるようにする。
+    """
+
+    cache = {}
+
+    for event in existing_data.get(
+        "events",
+        []
+    ):
+        url = event.get("url", "")
+
+        if url:
+            cache[url] = event
+
+    print(
+        f"Loaded cache: {len(cache)} events"
+    )
+
+    return cache
 
 
 def extract_detail_links(page):
@@ -211,7 +237,10 @@ def extract_detail_links(page):
     return result
 
 
-def find_best_detail_url(title, link_data):
+def find_best_detail_url(
+    title,
+    link_data
+):
     if not title:
         return ""
 
@@ -268,7 +297,11 @@ def find_best_detail_url(title, link_data):
     return best_url
 
 
-def parse_month(page, year, month):
+def parse_month(
+    page,
+    year,
+    month
+):
     body = page.locator(
         "body"
     ).inner_text()
@@ -292,7 +325,10 @@ def parse_month(page, year, month):
 
     for line in lines:
 
-        if re.fullmatch(r"\d{1,2}", line):
+        if re.fullmatch(
+            r"\d{1,2}",
+            line
+        ):
             day = int(line)
 
             if 1 <= day <= 31:
@@ -310,7 +346,9 @@ def parse_month(page, year, month):
         found_category = None
 
         for cat in CATEGORIES:
-            if line.startswith(cat + " "):
+            if line.startswith(
+                cat + " "
+            ):
                 found_category = cat
                 break
 
@@ -436,7 +474,9 @@ def parse_month(page, year, month):
     return events
 
 
-def detect_members(detail_text):
+def detect_members(
+    detail_text
+):
     upper_text = detail_text.upper()
 
     found = []
@@ -466,26 +506,68 @@ def detect_members(detail_text):
     return "ALL"
 
 
+def event_date(event):
+    """
+    eventをdatetime.dateに変換。
+    """
+
+    try:
+        return datetime(
+            int(event["year"]),
+            int(event["month"]),
+            int(event["day"]),
+            tzinfo=JST
+        ).date()
+
+    except Exception:
+        return None
+
+
+def should_refresh_detail(event):
+    """
+    直近7日〜未来の予定は
+    キャッシュがあっても詳細を再取得する。
+    """
+
+    date = event_date(event)
+
+    if not date:
+        return True
+
+    today = datetime.now(
+        JST
+    ).date()
+
+    refresh_from = (
+        today
+        - timedelta(
+            days=REFRESH_PAST_DAYS
+        )
+    )
+
+    return date >= refresh_from
+
+
 def enrich_members(
     page,
     events,
     cache
 ):
-    """
-    キャッシュに存在するイベントは
-    詳細ページを再取得しない。
-    """
-
     total = len(events)
 
     cache_hits = 0
     new_fetches = 0
+    refresh_fetches = 0
+    detail_errors = 0
 
     for index, event in enumerate(
         events,
         start=1
     ):
-        url = event.get("url", "")
+        url = event.get(
+            "url",
+            ""
+        )
 
         print(
             f"  detail {index}/{total}: "
@@ -493,26 +575,42 @@ def enrich_members(
         )
 
         if not url:
-            print("    no detail url")
+            print(
+                "    no detail url"
+            )
             continue
 
 
-        # -------------------------
-        # キャッシュ利用
-        # -------------------------
-        if url in cache:
+        cached = cache.get(url)
 
-            old = cache[url]
+        refresh_required = (
+            should_refresh_detail(
+                event
+            )
+        )
 
-            event["members"] = old.get(
-                "members",
-                "ALL"
+
+        # -------------------------
+        # 古いイベント
+        # → キャッシュをそのまま使用
+        # -------------------------
+        if (
+            cached
+            and not refresh_required
+        ):
+
+            event["members"] = (
+                cached.get(
+                    "members",
+                    "ALL"
+                )
             )
 
-            # noteを将来使う場合も再利用
-            event["note"] = old.get(
-                "note",
-                ""
+            event["note"] = (
+                cached.get(
+                    "note",
+                    ""
+                )
             )
 
             cache_hits += 1
@@ -526,62 +624,123 @@ def enrich_members(
 
 
         # -------------------------
-        # 新規イベントのみアクセス
+        # 新規 or 直近/未来イベント
+        # → 詳細ページを再取得
         # -------------------------
         try:
             page.goto(
                 url,
-                wait_until="domcontentloaded",
+                wait_until=(
+                    "domcontentloaded"
+                ),
                 timeout=30000
             )
 
-            page.wait_for_timeout(400)
+            page.wait_for_timeout(
+                400
+            )
 
             close_cookie(page)
 
-            detail_text = page.locator(
-                "body"
-            ).inner_text()
+            detail_text = (
+                page.locator(
+                    "body"
+                ).inner_text()
+            )
 
             members = detect_members(
                 detail_text
             )
 
-            event["members"] = members
-
-            new_fetches += 1
-
-            print(
-                f"    NEW FETCH: {members}"
+            event["members"] = (
+                members
             )
 
+            # 既存イベントの再確認
+            if cached:
+                refresh_fetches += 1
+
+                print(
+                    "    REFRESH FETCH: "
+                    f"{members}"
+                )
+
+            # 完全新規
+            else:
+                new_fetches += 1
+
+                print(
+                    "    NEW FETCH: "
+                    f"{members}"
+                )
+
         except Exception as e:
+
+            detail_errors += 1
+
             print(
                 f"    detail error: {e}"
             )
 
+            # 詳細取得失敗時、
+            # キャッシュがあれば古い情報を残す
+            if cached:
+                event["members"] = (
+                    cached.get(
+                        "members",
+                        "ALL"
+                    )
+                )
+
+                event["note"] = (
+                    cached.get(
+                        "note",
+                        ""
+                    )
+                )
+
+                print(
+                    "    FALLBACK TO CACHE"
+                )
+
     print()
     print(
-        f"CACHE HITS: {cache_hits}"
+        f"CACHE HITS: "
+        f"{cache_hits}"
     )
     print(
-        f"NEW DETAIL FETCHES: {new_fetches}"
+        f"NEW DETAIL FETCHES: "
+        f"{new_fetches}"
+    )
+    print(
+        f"REFRESH DETAIL FETCHES: "
+        f"{refresh_fetches}"
+    )
+    print(
+        f"DETAIL ERRORS: "
+        f"{detail_errors}"
     )
 
     return events
 
 
-def scrape():
+def scrape(
+    existing_data
+):
     all_events = []
 
-    # 既存JSONをキャッシュとして読み込む
-    cache = load_cache()
+    cache = build_cache(
+        existing_data
+    )
 
     months = get_months()
 
     print(
-        f"Months to check: {len(months)}"
+        f"Months to check: "
+        f"{len(months)}"
     )
+
+    list_errors = 0
 
     with sync_playwright() as p:
 
@@ -594,9 +753,6 @@ def scrape():
         )
 
 
-        # -------------------------
-        # 一覧ページ取得
-        # -------------------------
         for year, month in months:
 
             now = datetime.now(JST)
@@ -617,17 +773,22 @@ def scrape():
 
             print()
             print(
-                f"[{year}-{month:02d}] {url}"
+                f"[{year}-{month:02d}] "
+                f"{url}"
             )
 
             try:
                 page.goto(
                     url,
-                    wait_until="domcontentloaded",
+                    wait_until=(
+                        "domcontentloaded"
+                    ),
                     timeout=30000
                 )
 
-                page.wait_for_timeout(800)
+                page.wait_for_timeout(
+                    800
+                )
 
                 close_cookie(page)
 
@@ -642,22 +803,24 @@ def scrape():
                     f"{len(events)}"
                 )
 
-                all_events.extend(events)
+                all_events.extend(
+                    events
+                )
 
             except Exception as e:
+                list_errors += 1
+
                 print(
                     f"  LIST ERROR: {e}"
                 )
 
 
-        # -------------------------
-        # 重複除去
-        # -------------------------
         unique_events = []
 
         seen = set()
 
         for event in all_events:
+
             key = (
                 event["year"],
                 event["month"],
@@ -671,7 +834,9 @@ def scrape():
 
             seen.add(key)
 
-            unique_events.append(event)
+            unique_events.append(
+                event
+            )
 
 
         print()
@@ -681,9 +846,6 @@ def scrape():
         )
 
 
-        # -------------------------
-        # キャッシュ付き詳細取得
-        # -------------------------
         unique_events = enrich_members(
             page,
             unique_events,
@@ -692,12 +854,112 @@ def scrape():
 
         browser.close()
 
-    return unique_events
+    return (
+        unique_events,
+        list_errors
+    )
+
+
+def validate_new_data(
+    new_events,
+    existing_events
+):
+    """
+    空データや異常減少を検出する。
+    """
+
+    new_count = len(
+        new_events
+    )
+
+    old_count = len(
+        existing_events
+    )
+
+    print()
+    print(
+        "VALIDATION"
+    )
+
+    print(
+        f"  previous events: "
+        f"{old_count}"
+    )
+
+    print(
+        f"  new events: "
+        f"{new_count}"
+    )
+
+
+    # 完全0件は絶対保存しない
+    if new_count == 0:
+
+        print(
+            "  ERROR: "
+            "new event count is 0."
+        )
+
+        return False
+
+
+    # 前回データがまだない初回はOK
+    if old_count == 0:
+
+        print(
+            "  No previous data. "
+            "Validation passed."
+        )
+
+        return True
+
+
+    minimum_allowed = int(
+        old_count
+        * MIN_EVENT_RATIO
+    )
+
+
+    if new_count < minimum_allowed:
+
+        print(
+            "  ERROR: "
+            "event count dropped "
+            "too much."
+        )
+
+        print(
+            f"  Minimum allowed: "
+            f"{minimum_allowed}"
+        )
+
+        return False
+
+
+    print(
+        "  Validation passed."
+    )
+
+    return True
 
 
 def main():
 
-    events = scrape()
+    existing_data = (
+        load_existing_data()
+    )
+
+    existing_events = (
+        existing_data.get(
+            "events",
+            []
+        )
+    )
+
+    events, list_errors = scrape(
+        existing_data
+    )
+
 
     events.sort(
         key=lambda event: (
@@ -708,13 +970,50 @@ def main():
         )
     )
 
+
+    valid = validate_new_data(
+        events,
+        existing_events
+    )
+
+
+    # -------------------------
+    # 異常時は schedule.json を
+    # 絶対に上書きしない
+    # -------------------------
+    if not valid:
+
+        print()
+        print(
+            "=" * 50
+        )
+
+        print(
+            "SAFETY STOP:"
+        )
+
+        print(
+            "schedule.json was NOT "
+            "overwritten."
+        )
+
+        print(
+            "=" * 50
+        )
+
+        sys.exit(1)
+
+
     output = {
         "generated_at":
-            datetime.now(JST).isoformat(),
+            datetime.now(
+                JST
+            ).isoformat(),
 
         "events":
             events
     }
+
 
     with open(
         CACHE_FILE,
@@ -730,26 +1029,41 @@ def main():
         )
 
 
+    specific = [
+        event
+        for event in events
+        if event["members"]
+        != "ALL"
+    ]
+
+
     print()
-    print("=" * 50)
+    print(
+        "=" * 50
+    )
 
     print(
         f"TOTAL EVENTS: "
         f"{len(events)}"
     )
 
-    specific = [
-        event
-        for event in events
-        if event["members"] != "ALL"
-    ]
-
     print(
         "EVENTS WITH SPECIFIC MEMBERS: "
         f"{len(specific)}"
     )
 
-    print("=" * 50)
+    print(
+        f"LIST PAGE ERRORS: "
+        f"{list_errors}"
+    )
+
+    print(
+        "schedule.json updated safely."
+    )
+
+    print(
+        "=" * 50
+    )
 
 
 if __name__ == "__main__":
