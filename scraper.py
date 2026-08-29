@@ -14,17 +14,6 @@ MONTHS_AHEAD = 12
 
 JST = timezone(timedelta(hours=9))
 
-CATEGORIES = [
-    "LIVE／EVENT",
-    "WEB MEDIA",
-    "RELEASE",
-    "TV",
-    "RADIO",
-    "MAGAZINE",
-    "BIRTHDAY",
-    "OTHER",
-]
-
 
 def get_months():
 
@@ -34,8 +23,8 @@ def get_months():
     end_month = now.month + MONTHS_AHEAD
 
     while end_month > 12:
-        end_month -= 12
         end_year += 1
+        end_month -= 12
 
     months = []
 
@@ -61,162 +50,272 @@ def get_months():
 def close_cookie(page):
 
     selectors = [
-        "#onetrust-accept-btn-handler",
         'button:has-text("同意")',
+        'button:has-text("許可")',
         'button:has-text("Accept")',
+        '#onetrust-accept-btn-handler',
     ]
 
     for selector in selectors:
 
         try:
-
             button = page.locator(selector)
 
             if button.count() > 0:
                 button.first.click(timeout=2000)
                 page.wait_for_timeout(500)
+                print("  cookie banner closed")
                 return
 
         except:
             pass
 
 
-def clean_text(text):
+def get_clean_text(locator):
 
-    text = text.strip()
+    try:
+        text = locator.inner_text().strip()
 
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    )
+        text = re.sub(r"\s+", " ", text)
 
-    return text
+        return text
+
+    except:
+        return ""
 
 
-def extract_time(text):
+def get_title(page):
 
-    matches = re.findall(
-        r"\d{1,2}:\d{2}"
-        r"(?:\s*[-〜～‐]\s*\d{1,2}:\d{2})?",
-        text
-    )
+    selectors = [
+        "main h1",
+        "article h1",
+        "h1",
+        ".p-schedule-detail__title",
+        ".schedule-detail__title",
+        ".c-heading",
+    ]
 
-    if matches:
-        return matches[-1]
+    for selector in selectors:
+
+        try:
+
+            elements = page.locator(selector)
+
+            if elements.count() > 0:
+
+                for i in range(elements.count()):
+
+                    text = get_clean_text(elements.nth(i))
+
+                    if not text:
+                        continue
+
+                    if "アクセス履歴" in text:
+                        continue
+
+                    if "クッキー" in text:
+                        continue
+
+                    if len(text) < 2:
+                        continue
+
+                    return text
+
+        except:
+            pass
 
     return ""
 
 
-def remove_time_from_title(text):
+def get_category(page):
 
-    text = re.sub(
-        r"\s*\d{1,2}:\d{2}"
-        r"(?:\s*[-〜～‐]\s*\d{1,2}:\d{2})?",
-        "",
-        text
+    categories = [
+        "LIVE／EVENT",
+        "WEB MEDIA",
+        "RELEASE",
+        "TV",
+        "RADIO",
+        "MAGAZINE",
+        "BIRTHDAY",
+        "OTHER",
+    ]
+
+    body = get_clean_text(page.locator("body"))
+
+    for category in categories:
+
+        if category in body:
+            return category
+
+    return ""
+
+
+def get_event_date(page, fallback_year, fallback_month):
+
+    body = get_clean_text(page.locator("body"))
+
+    patterns = [
+        r"(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日",
+        r"(20\d{2})/(\d{1,2})/(\d{1,2})",
+        r"(20\d{2})\.(\d{1,2})\.(\d{1,2})",
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(pattern, body)
+
+        if match:
+
+            return (
+                int(match.group(1)),
+                int(match.group(2)),
+                int(match.group(3))
+            )
+
+    return (
+        fallback_year,
+        fallback_month,
+        None
     )
 
-    return clean_text(text)
+
+def get_time(page):
+
+    body = get_clean_text(page.locator("body"))
+
+    matches = re.findall(
+        r"\b\d{1,2}:\d{2}\b",
+        body
+    )
+
+    if matches:
+        return matches[0]
+
+    return ""
 
 
-def parse_month(page, year, month):
-
-    body = page.locator("body").inner_text()
-
-    lines = []
-
-    for line in body.splitlines():
-
-        line = clean_text(line)
-
-        if line:
-            lines.append(line)
+def get_events_from_list(page, year, month):
 
     events = []
 
-    current_day = None
+    links = page.locator('a[href*="/schedule/detail/"]')
+
+    count = links.count()
+
+    print(f"  detail links: {count}")
 
     seen = set()
 
-    for line in lines:
+    for i in range(count):
 
-        # 1〜31だけの行は日付
-        if re.fullmatch(r"\d{1,2}", line):
+        try:
 
-            day = int(line)
+            link = links.nth(i)
 
-            if 1 <= day <= 31:
-                current_day = day
+            href = link.get_attribute("href")
 
-            continue
-
-        # カテゴリから始まる予定だけ取得
-        category = None
-
-        for cat in CATEGORIES:
-
-            if line == cat:
+            if not href:
                 continue
 
-            if line.startswith(cat + " "):
+            match = re.search(
+                r"/schedule/detail/(\d+)",
+                href
+            )
 
-                category = cat
-                break
+            if not match:
+                continue
 
-        if not category:
-            continue
+            event_id = int(match.group(1))
 
-        if current_day is None:
-            continue
+            if event_id in seen:
+                continue
 
-        title = line[len(category):].strip()
+            seen.add(event_id)
 
-        if not title:
-            continue
+            if href.startswith("http"):
+                url = href
+            else:
+                url = BASE + href
 
-        # ナビゲーション等を除外
-        if title in CATEGORIES:
-            continue
+            events.append({
+                "id": event_id,
+                "url": url,
+                "year": year,
+                "month": month
+            })
 
-        event_time = extract_time(title)
+        except Exception as e:
 
-        title = remove_time_from_title(title)
+            print(f"  link error: {e}")
 
-        if len(title) < 2:
-            continue
+    return events
 
-        key = (
-            year,
-            month,
-            current_day,
-            category,
-            title
+
+def get_event_detail(page, event):
+
+    try:
+
+        page.goto(
+            event["url"],
+            wait_until="domcontentloaded",
+            timeout=30000
         )
 
-        if key in seen:
-            continue
+        page.wait_for_timeout(1000)
 
-        seen.add(key)
+        close_cookie(page)
 
-        events.append({
+        title = get_title(page)
+
+        category = get_category(page)
+
+        year, month, day = get_event_date(
+            page,
+            event["year"],
+            event["month"]
+        )
+
+        event_time = get_time(page)
+
+        if not title:
+
+            print(
+                f"    WARNING: title not found: {event['url']}"
+            )
+
+            return None
+
+        print(
+            f"    OK: {year}/{month}/{day} {title}"
+        )
+
+        return {
+            "id": event["id"],
             "year": year,
             "month": month,
-            "day": current_day,
+            "day": day,
             "cat": category,
             "title": title,
             "time": event_time,
             "members": "ALL",
             "note": "",
-            "url": ""
-        })
+            "url": event["url"]
+        }
 
-    return events
+    except Exception as e:
+
+        print(
+            f"    DETAIL ERROR: {event['url']} {e}"
+        )
+
+        return None
 
 
 def scrape():
 
     all_events = []
+
+    seen_ids = set()
 
     months = get_months()
 
@@ -238,7 +337,6 @@ def scrape():
 
             now = datetime.now(JST)
 
-            # 現在月だけ通常URL
             if (
                 year == now.year
                 and month == now.month
@@ -266,61 +364,45 @@ def scrape():
                     timeout=30000
                 )
 
-                page.wait_for_timeout(1500)
+                page.wait_for_timeout(1000)
 
                 close_cookie(page)
-
-                events = parse_month(
-                    page,
-                    year,
-                    month
-                )
-
-                print(
-                    f"  events found: {len(events)}"
-                )
-
-                for event in events:
-
-                    print(
-                        f"  {event['day']} "
-                        f"{event['cat']} "
-                        f"{event['title']}"
-                    )
-
-                all_events.extend(events)
 
             except Exception as e:
 
                 print(
-                    f"  ERROR: {e}"
+                    f"  PAGE ERROR: {e}"
                 )
 
-        browser.close()
+                continue
 
-    # 全体の重複除去
-    unique_events = []
+            events = get_events_from_list(
+                page,
+                year,
+                month
+            )
 
-    seen = set()
+            print(
+                f"  events found: {len(events)}"
+            )
 
-    for event in all_events:
+            for event in events:
 
-        key = (
-            event["year"],
-            event["month"],
-            event["day"],
-            event["cat"],
-            event["title"]
-        )
+                if event["id"] in seen_ids:
+                    continue
 
-        if key in seen:
-            continue
+                seen_ids.add(event["id"])
 
-        seen.add(key)
+                detail = get_event_detail(
+                    page,
+                    event
+                )
 
-        unique_events.append(event)
+                if detail:
+                    all_events.append(detail)
 
-    return unique_events
+
+    return all_events
 
 
 def main():
@@ -331,8 +413,10 @@ def main():
         key=lambda event: (
             event["year"],
             event["month"],
-            event["day"],
-            event["title"]
+            event["day"]
+            if event["day"] is not None
+            else 99,
+            event["id"]
         )
     )
 
