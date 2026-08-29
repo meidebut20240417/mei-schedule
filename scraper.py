@@ -297,7 +297,6 @@ def scrape():
                 if detail:
                     all_events.append(detail)
 
-    browser.close()
 
     return all_events
 
