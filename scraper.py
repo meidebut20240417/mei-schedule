@@ -1,6 +1,5 @@
 import json
 import re
-import time
 from datetime import datetime, timedelta, timezone
 
 from playwright.sync_api import sync_playwright
@@ -8,42 +7,15 @@ from playwright.sync_api import sync_playwright
 
 BASE = "https://me-i.jp"
 
-# 過去の取得開始
 START_YEAR = 2024
 START_MONTH = 4
 
-# 未来何か月先まで取得するか
 MONTHS_AHEAD = 12
 
 JST = timezone(timedelta(hours=9))
 
-CATEGORY_KEYWORDS = [
-    "LIVE／EVENT",
-    "WEB MEDIA",
-    "RELEASE",
-    "TV",
-    "RADIO",
-    "MAGAZINE",
-    "BIRTHDAY",
-    "OTHER",
-]
-
-WEEKDAYS = {
-    "Mon": "Mon",
-    "Tue": "Tue",
-    "Wed": "Wed",
-    "Thu": "Thu",
-    "Fri": "Fri",
-    "Sat": "Sat",
-    "Sun": "Sun",
-}
-
 
 def get_months():
-    """
-    2024年4月から現在+12か月までの
-    (year, month) を作る
-    """
 
     now = datetime.now(JST)
 
@@ -60,6 +32,7 @@ def get_months():
     month = START_MONTH
 
     while True:
+
         months.append((year, month))
 
         if year == end_year and month == end_month:
@@ -74,25 +47,169 @@ def get_months():
     return months
 
 
-def parse_events_from_page(page, year, month):
-    """
-    ページ上のイベント詳細リンクを直接取得する。
-    """
+def close_cookie(page):
+
+    selectors = [
+        'button:has-text("同意")',
+        'button:has-text("許可")',
+        'button:has-text("Accept")',
+        '#onetrust-accept-btn-handler',
+    ]
+
+    for selector in selectors:
+
+        try:
+            button = page.locator(selector)
+
+            if button.count() > 0:
+                button.first.click(timeout=2000)
+                page.wait_for_timeout(500)
+                print("  cookie banner closed")
+                return
+
+        except:
+            pass
+
+
+def get_clean_text(locator):
+
+    try:
+        text = locator.inner_text().strip()
+
+        text = re.sub(r"\s+", " ", text)
+
+        return text
+
+    except:
+        return ""
+
+
+def get_title(page):
+
+    selectors = [
+        "main h1",
+        "article h1",
+        "h1",
+        ".p-schedule-detail__title",
+        ".schedule-detail__title",
+        ".c-heading",
+    ]
+
+    for selector in selectors:
+
+        try:
+
+            elements = page.locator(selector)
+
+            if elements.count() > 0:
+
+                for i in range(elements.count()):
+
+                    text = get_clean_text(elements.nth(i))
+
+                    if not text:
+                        continue
+
+                    if "アクセス履歴" in text:
+                        continue
+
+                    if "クッキー" in text:
+                        continue
+
+                    if len(text) < 2:
+                        continue
+
+                    return text
+
+        except:
+            pass
+
+    return ""
+
+
+def get_category(page):
+
+    categories = [
+        "LIVE／EVENT",
+        "WEB MEDIA",
+        "RELEASE",
+        "TV",
+        "RADIO",
+        "MAGAZINE",
+        "BIRTHDAY",
+        "OTHER",
+    ]
+
+    body = get_clean_text(page.locator("body"))
+
+    for category in categories:
+
+        if category in body:
+            return category
+
+    return ""
+
+
+def get_event_date(page, fallback_year, fallback_month):
+
+    body = get_clean_text(page.locator("body"))
+
+    patterns = [
+        r"(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日",
+        r"(20\d{2})/(\d{1,2})/(\d{1,2})",
+        r"(20\d{2})\.(\d{1,2})\.(\d{1,2})",
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(pattern, body)
+
+        if match:
+
+            return (
+                int(match.group(1)),
+                int(match.group(2)),
+                int(match.group(3))
+            )
+
+    return (
+        fallback_year,
+        fallback_month,
+        None
+    )
+
+
+def get_time(page):
+
+    body = get_clean_text(page.locator("body"))
+
+    matches = re.findall(
+        r"\b\d{1,2}:\d{2}\b",
+        body
+    )
+
+    if matches:
+        return matches[0]
+
+    return ""
+
+
+def get_events_from_list(page, year, month):
 
     events = []
 
-    # /schedule/detail/1234 のリンクを全部取得
     links = page.locator('a[href*="/schedule/detail/"]')
 
     count = links.count()
 
     print(f"  detail links: {count}")
 
-    seen_ids = set()
+    seen = set()
 
     for i in range(count):
 
         try:
+
             link = links.nth(i)
 
             href = link.get_attribute("href")
@@ -100,48 +217,41 @@ def parse_events_from_page(page, year, month):
             if not href:
                 continue
 
-            match = re.search(r"/schedule/detail/(\d+)", href)
+            match = re.search(
+                r"/schedule/detail/(\d+)",
+                href
+            )
 
             if not match:
                 continue
 
             event_id = int(match.group(1))
 
-            if event_id in seen_ids:
+            if event_id in seen:
                 continue
 
-            seen_ids.add(event_id)
+            seen.add(event_id)
 
-            text = link.inner_text().strip()
-
-            # 親要素のテキストも取得
-            parent_text = ""
-
-            try:
-                parent_text = link.locator("xpath=..").inner_text().strip()
-            except:
-                parent_text = ""
+            if href.startswith("http"):
+                url = href
+            else:
+                url = BASE + href
 
             events.append({
                 "id": event_id,
+                "url": url,
                 "year": year,
-                "month": month,
-                "raw_text": text,
-                "parent_text": parent_text,
-                "url": f"{BASE}/schedule/detail/{event_id}"
+                "month": month
             })
 
         except Exception as e:
-            print(f"    link error: {e}")
+
+            print(f"  link error: {e}")
 
     return events
 
 
-def parse_detail_page(page, event):
-
-    """
-    詳細ページからタイトル・カテゴリ・時間などを取得する
-    """
+def get_event_detail(page, event):
 
     try:
 
@@ -151,89 +261,67 @@ def parse_detail_page(page, event):
             timeout=30000
         )
 
-        time.sleep(0.5)
+        page.wait_for_timeout(1000)
 
-        body = page.locator("body").inner_text()
+        close_cookie(page)
+
+        title = get_title(page)
+
+        category = get_category(page)
+
+        year, month, day = get_event_date(
+            page,
+            event["year"],
+            event["month"]
+        )
+
+        event_time = get_time(page)
+
+        if not title:
+
+            print(
+                f"    WARNING: title not found: {event['url']}"
+            )
+
+            return None
+
+        print(
+            f"    OK: {year}/{month}/{day} {title}"
+        )
+
+        return {
+            "id": event["id"],
+            "year": year,
+            "month": month,
+            "day": day,
+            "cat": category,
+            "title": title,
+            "time": event_time,
+            "members": "ALL",
+            "note": "",
+            "url": event["url"]
+        }
 
     except Exception as e:
 
-        print(f"    detail failed: {event['url']}")
+        print(
+            f"    DETAIL ERROR: {event['url']} {e}"
+        )
 
         return None
-
-    lines = [
-        line.strip()
-        for line in body.splitlines()
-        if line.strip()
-    ]
-
-    title = ""
-    category = ""
-    event_date = ""
-
-    # カテゴリを探す
-    for line in lines:
-
-        if line in CATEGORY_KEYWORDS:
-
-            category = line
-            break
-
-    # 詳細ページの上の方からタイトル候補を探す
-    if lines:
-
-        title = lines[0]
-
-    # 日付を探す
-    date_match = re.search(
-        r"(20\d{2})[./年](\d{1,2})[./月](\d{1,2})",
-        body
-    )
-
-    if date_match:
-
-        event["year"] = int(date_match.group(1))
-        event["month"] = int(date_match.group(2))
-        event["day"] = int(date_match.group(3))
-
-    else:
-
-        # 一覧ページの月を利用
-        event["day"] = None
-
-    # 時刻を探す
-    time_matches = re.findall(
-        r"\d{1,2}:\d{2}(?:\s*[-〜～]\s*\d{1,2}:\d{2})?",
-        body
-    )
-
-    event_time = ""
-
-    if time_matches:
-        event_time = time_matches[0]
-
-    return {
-        "id": event["id"],
-        "year": event["year"],
-        "month": event["month"],
-        "day": event["day"],
-        "cat": category,
-        "title": title,
-        "time": event_time,
-        "members": "ALL",
-        "note": "",
-        "url": event["url"]
-    }
 
 
 def scrape():
 
     all_events = []
+
     seen_ids = set()
 
     months = get_months()
 
-    print(f"months to check: {len(months)}")
+    print(
+        f"Months to check: {len(months)}"
+    )
 
     with sync_playwright() as p:
 
@@ -247,40 +335,56 @@ def scrape():
 
         for year, month in months:
 
+            now = datetime.now(JST)
+
             if (
-                year == datetime.now(JST).year
-                and month == datetime.now(JST).month
+                year == now.year
+                and month == now.month
             ):
+
                 url = f"{BASE}/schedule/list/"
+
             else:
-                url = f"{BASE}/schedule/list/{year}/{month}/"
+
+                url = (
+                    f"{BASE}/schedule/list/"
+                    f"{year}/{month}/"
+                )
 
             print()
-            print(f"[{year}-{month:02d}] {url}")
+            print(
+                f"[{year}-{month:02d}] {url}"
+            )
 
             try:
 
                 page.goto(
                     url,
-                    wait_until="networkidle",
+                    wait_until="domcontentloaded",
                     timeout=30000
                 )
 
-                time.sleep(1)
+                page.wait_for_timeout(1000)
+
+                close_cookie(page)
 
             except Exception as e:
 
-                print(f"  page load failed: {e}")
+                print(
+                    f"  PAGE ERROR: {e}"
+                )
 
                 continue
 
-            events = parse_events_from_page(
+            events = get_events_from_list(
                 page,
                 year,
                 month
             )
 
-            print(f"  events found: {len(events)}")
+            print(
+                f"  events found: {len(events)}"
+            )
 
             for event in events:
 
@@ -289,7 +393,7 @@ def scrape():
 
                 seen_ids.add(event["id"])
 
-                detail = parse_detail_page(
+                detail = get_event_detail(
                     page,
                     event
                 )
@@ -297,6 +401,7 @@ def scrape():
                 if detail:
                     all_events.append(detail)
 
+        browser.close()
 
     return all_events
 
@@ -305,37 +410,43 @@ def main():
 
     events = scrape()
 
-    # 日付順に並び替え
     events.sort(
-        key=lambda e: (
-            e["year"],
-            e["month"],
-            e["day"] if e["day"] else 99,
-            e["id"]
+        key=lambda event: (
+            event["year"],
+            event["month"],
+            event["day"]
+            if event["day"] is not None
+            else 99,
+            event["id"]
         )
     )
 
     output = {
-        "generated_at": datetime.now(JST).isoformat(),
-        "events": events
+        "generated_at":
+            datetime.now(JST).isoformat(),
+
+        "events":
+            events
     }
 
     with open(
         "schedule.json",
         "w",
         encoding="utf-8"
-    ) as f:
+    ) as file:
 
         json.dump(
             output,
-            f,
+            file,
             ensure_ascii=False,
             indent=2
         )
 
     print()
     print("=" * 40)
-    print(f"TOTAL EVENTS: {len(events)}")
+    print(
+        f"TOTAL EVENTS: {len(events)}"
+    )
     print("=" * 40)
 
 
