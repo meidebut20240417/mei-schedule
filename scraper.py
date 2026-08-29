@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -10,10 +11,11 @@ BASE = "https://me-i.jp"
 START_YEAR = 2024
 START_MONTH = 4
 
-# 現在から未来12か月先まで
 MONTHS_AHEAD = 12
 
 JST = timezone(timedelta(hours=9))
+
+CACHE_FILE = "schedule.json"
 
 
 CATEGORIES = [
@@ -28,8 +30,6 @@ CATEGORIES = [
 ]
 
 
-# ME:Iメンバー
-# 過去分も正しく拾えるように11人分入れてあります
 MEMBERS = {
     "MOMONA": "momona",
     "RAN": "ran",
@@ -96,8 +96,7 @@ def close_cookie(page):
 
 def clean_text(text):
     text = text.strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
+    return re.sub(r"\s+", " ", text)
 
 
 def extract_time(text):
@@ -137,17 +136,53 @@ def normalize_url(href):
     return BASE + "/" + href
 
 
-def extract_detail_links(page):
+def load_cache():
     """
-    一覧ページ上の詳細リンクを、
-    リンクテキストとURLの対応表として取得する。
+    既存の schedule.json を読み込み、
+    URLをキーにした辞書を作る。
     """
 
+    if not os.path.exists(CACHE_FILE):
+        print("No cache file found.")
+        return {}
+
+    try:
+        with open(
+            CACHE_FILE,
+            "r",
+            encoding="utf-8"
+        ) as file:
+            data = json.load(file)
+
+        events = data.get("events", [])
+
+        cache = {}
+
+        for event in events:
+            url = event.get("url", "")
+
+            if url:
+                cache[url] = event
+
+        print(
+            f"Loaded cache: {len(cache)} events"
+        )
+
+        return cache
+
+    except Exception as e:
+        print(
+            f"Cache load error: {e}"
+        )
+
+        return {}
+
+
+def extract_detail_links(page):
     result = []
 
     links = page.locator(
-        'a[href*="/schedule/detail/"], '
-        'a[href*="/news/detail/"]'
+        'a[href*="/schedule/detail/"]'
     )
 
     count = links.count()
@@ -161,7 +196,9 @@ def extract_detail_links(page):
             if not href:
                 continue
 
-            text = clean_text(link.inner_text())
+            text = clean_text(
+                link.inner_text()
+            )
 
             result.append({
                 "text": text,
@@ -175,14 +212,14 @@ def extract_detail_links(page):
 
 
 def find_best_detail_url(title, link_data):
-    """
-    一覧から取得したタイトルと最も一致する詳細リンクを探す。
-    """
-
     if not title:
         return ""
 
-    normalized_title = re.sub(r"\s+", "", title)
+    normalized_title = re.sub(
+        r"\s+",
+        "",
+        title
+    )
 
     best_url = ""
     best_score = 0
@@ -193,7 +230,11 @@ def find_best_detail_url(title, link_data):
         if not link_text:
             continue
 
-        normalized_link = re.sub(r"\s+", "", link_text)
+        normalized_link = re.sub(
+            r"\s+",
+            "",
+            link_text
+        )
 
         score = 0
 
@@ -204,7 +245,6 @@ def find_best_detail_url(title, link_data):
             score = len(normalized_link)
 
         else:
-            # 先頭何文字か一致する場合も候補
             common = 0
 
             for a, b in zip(
@@ -213,6 +253,7 @@ def find_best_detail_url(title, link_data):
             ):
                 if a != b:
                     break
+
                 common += 1
 
             score = common
@@ -221,7 +262,6 @@ def find_best_detail_url(title, link_data):
             best_score = score
             best_url = item["url"]
 
-    # 一致が弱すぎる場合は誤リンク防止
     if best_score < 4:
         return ""
 
@@ -229,13 +269,9 @@ def find_best_detail_url(title, link_data):
 
 
 def parse_month(page, year, month):
-    """
-    一覧ページから
-    日付・カテゴリ・タイトル・時間を取得。
-    さらに詳細ページURLを対応付ける。
-    """
-
-    body = page.locator("body").inner_text()
+    body = page.locator(
+        "body"
+    ).inner_text()
 
     lines = []
 
@@ -256,11 +292,7 @@ def parse_month(page, year, month):
 
     for line in lines:
 
-        # -------------------------
-        # 日付
-        # -------------------------
         if re.fullmatch(r"\d{1,2}", line):
-
             day = int(line)
 
             if 1 <= day <= 31:
@@ -270,17 +302,11 @@ def parse_month(page, year, month):
             continue
 
 
-        # -------------------------
-        # カテゴリだけの行
-        # -------------------------
         if line in CATEGORIES:
             current_category = line
             continue
 
 
-        # -------------------------
-        # カテゴリ＋タイトルが同じ行
-        # -------------------------
         found_category = None
 
         for cat in CATEGORIES:
@@ -288,17 +314,21 @@ def parse_month(page, year, month):
                 found_category = cat
                 break
 
-        if found_category:
 
+        if found_category:
             if current_day is None:
                 continue
 
-            title_with_time = line[len(found_category):].strip()
+            title_with_time = line[
+                len(found_category):
+            ].strip()
 
             if not title_with_time:
                 continue
 
-            event_time = extract_time(title_with_time)
+            event_time = extract_time(
+                title_with_time
+            )
 
             title = remove_time_from_title(
                 title_with_time
@@ -339,9 +369,6 @@ def parse_month(page, year, month):
             continue
 
 
-        # -------------------------
-        # 前の行がカテゴリだった場合
-        # -------------------------
         if (
             current_category
             and current_day is not None
@@ -376,7 +403,6 @@ def parse_month(page, year, month):
             )
 
             if len(title) >= 2:
-
                 detail_url = find_best_detail_url(
                     title_with_time,
                     link_data
@@ -411,45 +437,28 @@ def parse_month(page, year, month):
 
 
 def detect_members(detail_text):
-    """
-    詳細ページから出演メンバーを取得。
-
-    例:
-    KEIKO、RINONが出演いたします。
-    AYANE、SUZUがコメント出演いたします。
-    KEIKO、RINON、SUZUがVTR出演いたします。
-    """
-
     upper_text = detail_text.upper()
 
     found = []
 
+    pattern = (
+        r"([A-Z、,\s]{2,100})"
+        r"(?:が|は)"
+        r".{0,20}"
+        r"出演"
+    )
+
+    matches = re.findall(
+        pattern,
+        upper_text
+    )
+
     for member_name, slug in MEMBERS.items():
-        # 名前が単純にページ内にあるだけでは
-        # 誤判定する可能性があるので、
-        # 「出演」の近辺を優先する
-
-        pattern = (
-            r"([A-Z、,\s]{2,100})"
-            r"(?:が|は)"
-            r".{0,20}"
-            r"出演"
-        )
-
-        matches = re.findall(
-            pattern,
-            upper_text
-        )
-
-        member_found = False
 
         for block in matches:
             if member_name in block:
-                member_found = True
+                found.append(slug)
                 break
-
-        if member_found:
-            found.append(slug)
 
     if found:
         return found
@@ -457,28 +466,68 @@ def detect_members(detail_text):
     return "ALL"
 
 
-def enrich_members(page, events):
+def enrich_members(
+    page,
+    events,
+    cache
+):
     """
-    URLが取得できているイベントについて
-    詳細ページを読み込み、
-    membersを更新する。
+    キャッシュに存在するイベントは
+    詳細ページを再取得しない。
     """
 
     total = len(events)
 
-    for index, event in enumerate(events, start=1):
+    cache_hits = 0
+    new_fetches = 0
+
+    for index, event in enumerate(
+        events,
+        start=1
+    ):
+        url = event.get("url", "")
 
         print(
             f"  detail {index}/{total}: "
             f"{event['title']}"
         )
 
-        url = event.get("url", "")
-
         if not url:
             print("    no detail url")
             continue
 
+
+        # -------------------------
+        # キャッシュ利用
+        # -------------------------
+        if url in cache:
+
+            old = cache[url]
+
+            event["members"] = old.get(
+                "members",
+                "ALL"
+            )
+
+            # noteを将来使う場合も再利用
+            event["note"] = old.get(
+                "note",
+                ""
+            )
+
+            cache_hits += 1
+
+            print(
+                f"    CACHE HIT: "
+                f"{event['members']}"
+            )
+
+            continue
+
+
+        # -------------------------
+        # 新規イベントのみアクセス
+        # -------------------------
         try:
             page.goto(
                 url,
@@ -500,21 +549,33 @@ def enrich_members(page, events):
 
             event["members"] = members
 
+            new_fetches += 1
+
             print(
-                f"    members: {members}"
+                f"    NEW FETCH: {members}"
             )
 
         except Exception as e:
-
             print(
                 f"    detail error: {e}"
             )
+
+    print()
+    print(
+        f"CACHE HITS: {cache_hits}"
+    )
+    print(
+        f"NEW DETAIL FETCHES: {new_fetches}"
+    )
 
     return events
 
 
 def scrape():
     all_events = []
+
+    # 既存JSONをキャッシュとして読み込む
+    cache = load_cache()
 
     months = get_months()
 
@@ -532,8 +593,9 @@ def scrape():
             locale="ja-JP"
         )
 
+
         # -------------------------
-        # まず一覧ページを全部取得
+        # 一覧ページ取得
         # -------------------------
         for year, month in months:
 
@@ -543,7 +605,9 @@ def scrape():
                 year == now.year
                 and month == now.month
             ):
-                url = f"{BASE}/schedule/list/"
+                url = (
+                    f"{BASE}/schedule/list/"
+                )
 
             else:
                 url = (
@@ -557,14 +621,13 @@ def scrape():
             )
 
             try:
-
                 page.goto(
                     url,
                     wait_until="domcontentloaded",
                     timeout=30000
                 )
 
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(800)
 
                 close_cookie(page)
 
@@ -582,10 +645,10 @@ def scrape():
                 all_events.extend(events)
 
             except Exception as e:
-
                 print(
                     f"  LIST ERROR: {e}"
                 )
+
 
         # -------------------------
         # 重複除去
@@ -595,7 +658,6 @@ def scrape():
         seen = set()
 
         for event in all_events:
-
             key = (
                 event["year"],
                 event["month"],
@@ -611,18 +673,21 @@ def scrape():
 
             unique_events.append(event)
 
+
         print()
         print(
             f"Unique events: "
             f"{len(unique_events)}"
         )
 
+
         # -------------------------
-        # 詳細ページ取得
+        # キャッシュ付き詳細取得
         # -------------------------
         unique_events = enrich_members(
             page,
-            unique_events
+            unique_events,
+            cache
         )
 
         browser.close()
@@ -652,7 +717,7 @@ def main():
     }
 
     with open(
-        "schedule.json",
+        CACHE_FILE,
         "w",
         encoding="utf-8"
     ) as file:
@@ -664,13 +729,16 @@ def main():
             indent=2
         )
 
+
     print()
     print("=" * 50)
+
     print(
-        f"TOTAL EVENTS: {len(events)}"
+        f"TOTAL EVENTS: "
+        f"{len(events)}"
     )
 
-    member_events = [
+    specific = [
         event
         for event in events
         if event["members"] != "ALL"
@@ -678,8 +746,9 @@ def main():
 
     print(
         "EVENTS WITH SPECIFIC MEMBERS: "
-        f"{len(member_events)}"
+        f"{len(specific)}"
     )
+
     print("=" * 50)
 
 
