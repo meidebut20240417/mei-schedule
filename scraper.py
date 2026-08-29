@@ -1,220 +1,343 @@
-#!/usr/bin/env python3
-"""
-me-i.jp のスケジュールページを定期的に取得し、schedule.json に書き出すスクレイパー。
-
-【注意】
-このスクリプトは GitHub Actions 上で実行される前提で書かれています。
-作者（Claude）の作業環境からは me-i.jp に直接アクセスできないため、
-実際のサイトに対して一度も実行・検証できていません。
-初回は必ず手動実行（workflow_dispatch）して schedule.json の中身を
-目視で確認してください。サイトの表記が変わると正規表現の調整が必要になります。
-
-出力形式（schedule.json）:
-{
-  "generated_at": "2026-08-29T12:00:00+09:00",
-  "events": [
-    {
-      "id": 1360,
-      "year": 2026, "month": 8, "day": 1, "wd": "Sat",
-      "cat": "TV",
-      "title": "KBC『#タグるヨル』",
-      "time": "24:20-24:50",
-      "members": ["tsuzumi"],   // 特定できない場合は "ALL"
-      "note": "",
-      "url": "https://me-i.jp/schedule/detail/1360"
-    },
-    ...
-  ]
-}
-"""
-
 import json
 import re
-import sys
 import time
 from datetime import datetime, timedelta, timezone
 
 from playwright.sync_api import sync_playwright
 
+
 BASE = "https://me-i.jp"
 
-# 何ヶ月分を取得するか（現在月を基準に前後何ヶ月）。必要に応じて調整してください。
-MONTHS_BEFORE = 1
-MONTHS_AFTER = 3
+# 過去の取得開始
+START_YEAR = 2024
+START_MONTH = 4
 
-# メンバー名の表記ゆれを吸収するための対応表（詳細ページの「〇〇が出演いたします」を判定する）
-MEMBER_NAMES = {
-    "MIU": "miu",
-    "MOMONA": "momona",
-    "AYANE": "ayane",
-    "KEIKO": "keiko",
-    "RINON": "rinon",
-    "SUZU": "suzu",
-    "TSUZUMI": "tsuzumi",
+# 未来何か月先まで取得するか
+MONTHS_AHEAD = 12
+
+JST = timezone(timedelta(hours=9))
+
+CATEGORY_KEYWORDS = [
+    "LIVE／EVENT",
+    "WEB MEDIA",
+    "RELEASE",
+    "TV",
+    "RADIO",
+    "MAGAZINE",
+    "BIRTHDAY",
+    "OTHER",
+]
+
+WEEKDAYS = {
+    "Mon": "Mon",
+    "Tue": "Tue",
+    "Wed": "Wed",
+    "Thu": "Thu",
+    "Fri": "Fri",
+    "Sat": "Sat",
+    "Sun": "Sun",
 }
 
-CATEGORY_KEYWORDS = ["RELEASE", "LIVE", "TV", "RADIO", "MAGAZINE", "WEB", "BIRTHDAY", "OTHER"]
 
-WD_JP2EN = {"日": "Sun", "月": "Mon", "火": "Tue", "水": "Wed", "木": "Thu", "金": "Fri", "土": "Sat"}
-
-
-def month_range(months_before: int, months_after: int):
-    """(year, month) のタプルを、現在月を基準に前後で列挙する。"""
-    now = datetime.now(timezone(timedelta(hours=9)))  # JST基準
-    y, m = now.year, now.month
-    results = []
-    for offset in range(-months_before, months_after + 1):
-        total = (y * 12 + (m - 1)) + offset
-        yy, mm = divmod(total, 12)
-        results.append((yy, mm + 1))
-    return results
-
-
-def parse_list_page(text: str, year: int, month: int):
+def get_months():
     """
-    一覧ページの本文テキストから予定を抽出する。
-    サイトの表記が変わった場合はここの正規表現を調整してください。
-
-    想定している行の形（例）:
-      "08.15 Sat" のような日付見出しの後に、
-      "TV" のような媒体区分、タイトル、時刻、詳細リンクが続く。
+    2024年4月から現在+12か月までの
+    (year, month) を作る
     """
+
+    now = datetime.now(JST)
+
+    end_year = now.year
+    end_month = now.month + MONTHS_AHEAD
+
+    while end_month > 12:
+        end_year += 1
+        end_month -= 12
+
+    months = []
+
+    year = START_YEAR
+    month = START_MONTH
+
+    while True:
+        months.append((year, month))
+
+        if year == end_year and month == end_month:
+            break
+
+        month += 1
+
+        if month > 12:
+            month = 1
+            year += 1
+
+    return months
+
+
+def parse_events_from_page(page, year, month):
+    """
+    ページ上のイベント詳細リンクを直接取得する。
+    """
+
     events = []
 
-    # 日付見出し: 08.15 Sat / 08.15 (Sat) など表記ゆれに少し幅を持たせる
-    date_pat = re.compile(r"(\d{1,2})\.(\d{1,2})\s*\(?([A-Za-z]{3})\)?")
-    # 詳細リンク: /schedule/detail/1234
-    link_pat = re.compile(r"/schedule/detail/(\d+)")
-    # 時刻: 18:00-18:55 や 24:20-24:50
-    time_pat = re.compile(r"\d{1,2}:\d{2}(-\d{1,2}:\d{2})?")
+    # /schedule/detail/1234 のリンクを全部取得
+    links = page.locator('a[href*="/schedule/detail/"]')
 
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    count = links.count()
 
-    current_day = None
-    current_wd = None
+    print(f"  detail links: {count}")
 
-    i = 0
-    while i < len(lines):
-        line = lines[i]
+    seen_ids = set()
 
-        m = date_pat.match(line)
-        if m:
-            current_day = int(m.group(2))
-            current_wd = m.group(3)
-            i += 1
-            continue
+    for i in range(count):
 
-        cat_match = next((c for c in CATEGORY_KEYWORDS if line.startswith(c)), None)
-        if cat_match and current_day:
-            # このブロックから、次の日付見出しか次のカテゴリ行までを1イベントとみなす
-            title = line[len(cat_match):].strip(" 　:：")
-            block = [line]
-            j = i + 1
-            while j < len(lines) and not date_pat.match(lines[j]) and not any(
-                lines[j].startswith(c) for c in CATEGORY_KEYWORDS
-            ):
-                block.append(lines[j])
-                j += 1
+        try:
+            link = links.nth(i)
 
-            block_text = " ".join(block)
-            time_m = time_pat.search(block_text)
-            link_m = link_pat.search(block_text)
+            href = link.get_attribute("href")
 
-            if not title:
-                # タイトルが次の行にある場合
-                for b in block[1:]:
-                    if not time_pat.fullmatch(b) and not link_pat.search(b):
-                        title = b
-                        break
+            if not href:
+                continue
+
+            match = re.search(r"/schedule/detail/(\d+)", href)
+
+            if not match:
+                continue
+
+            event_id = int(match.group(1))
+
+            if event_id in seen_ids:
+                continue
+
+            seen_ids.add(event_id)
+
+            text = link.inner_text().strip()
+
+            # 親要素のテキストも取得
+            parent_text = ""
+
+            try:
+                parent_text = link.locator("xpath=..").inner_text().strip()
+            except:
+                parent_text = ""
 
             events.append({
-                "id": int(link_m.group(1)) if link_m else None,
+                "id": event_id,
                 "year": year,
                 "month": month,
-                "day": current_day,
-                "wd": current_wd,
-                "cat": cat_match,
-                "title": title or "(タイトル取得失敗)",
-                "time": time_m.group(0) if time_m else "",
-                "members": "ALL",
-                "note": "",
-                "url": f"{BASE}/schedule/detail/{link_m.group(1)}" if link_m else "",
+                "raw_text": text,
+                "parent_text": parent_text,
+                "url": f"{BASE}/schedule/detail/{event_id}"
             })
-            i = j
-            continue
 
-        i += 1
+        except Exception as e:
+            print(f"    link error: {e}")
 
-    # id が取れなかったものは detail 追跡できないので除外
-    return [e for e in events if e["id"]]
+    return events
 
 
-def detect_members(detail_text: str):
-    """詳細ページの本文から「〇〇が出演いたします」的な記述を拾ってメンバーを特定する。"""
-    found = []
-    for name, slug in MEMBER_NAMES.items():
-        if name in detail_text.upper():
-            found.append(slug)
-    return found if found else "ALL"
+def parse_detail_page(page, event):
+
+    """
+    詳細ページからタイトル・カテゴリ・時間などを取得する
+    """
+
+    try:
+
+        page.goto(
+            event["url"],
+            wait_until="domcontentloaded",
+            timeout=30000
+        )
+
+        time.sleep(0.5)
+
+        body = page.locator("body").inner_text()
+
+    except Exception as e:
+
+        print(f"    detail failed: {event['url']}")
+
+        return None
+
+    lines = [
+        line.strip()
+        for line in body.splitlines()
+        if line.strip()
+    ]
+
+    title = ""
+    category = ""
+    event_date = ""
+
+    # カテゴリを探す
+    for line in lines:
+
+        if line in CATEGORY_KEYWORDS:
+
+            category = line
+            break
+
+    # 詳細ページの上の方からタイトル候補を探す
+    if lines:
+
+        title = lines[0]
+
+    # 日付を探す
+    date_match = re.search(
+        r"(20\d{2})[./年](\d{1,2})[./月](\d{1,2})",
+        body
+    )
+
+    if date_match:
+
+        event["year"] = int(date_match.group(1))
+        event["month"] = int(date_match.group(2))
+        event["day"] = int(date_match.group(3))
+
+    else:
+
+        # 一覧ページの月を利用
+        event["day"] = None
+
+    # 時刻を探す
+    time_matches = re.findall(
+        r"\d{1,2}:\d{2}(?:\s*[-〜～]\s*\d{1,2}:\d{2})?",
+        body
+    )
+
+    event_time = ""
+
+    if time_matches:
+        event_time = time_matches[0]
+
+    return {
+        "id": event["id"],
+        "year": event["year"],
+        "month": event["month"],
+        "day": event["day"],
+        "cat": category,
+        "title": title,
+        "time": event_time,
+        "members": "ALL",
+        "note": "",
+        "url": event["url"]
+    }
 
 
 def scrape():
+
     all_events = []
     seen_ids = set()
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(locale="ja-JP")
+    months = get_months()
 
-        for year, month in month_range(MONTHS_BEFORE, MONTHS_AFTER):
-            url = f"{BASE}/schedule/list/{year}/{month}"
-            print(f"[list] {url}")
+    print(f"months to check: {len(months)}")
+
+    with sync_playwright() as p:
+
+        browser = p.chromium.launch(
+            headless=True
+        )
+
+        page = browser.new_page(
+            locale="ja-JP"
+        )
+
+        for year, month in months:
+
+            if (
+                year == datetime.now(JST).year
+                and month == datetime.now(JST).month
+            ):
+                url = f"{BASE}/schedule/list/"
+            else:
+                url = f"{BASE}/schedule/list/{year}/{month}/"
+
+            print()
+            print(f"[{year}-{month:02d}] {url}")
+
             try:
-                page.goto(url, wait_until="networkidle", timeout=30000)
-                time.sleep(1)  # 念のため描画待ち
-                body_text = page.inner_text("body")
-            except Exception as ex:
-                print(f"  !! failed to load list page: {ex}", file=sys.stderr)
+
+                page.goto(
+                    url,
+                    wait_until="networkidle",
+                    timeout=30000
+                )
+
+                time.sleep(1)
+
+            except Exception as e:
+
+                print(f"  page load failed: {e}")
+
                 continue
 
-            month_events = parse_list_page(body_text, year, month)
-            print(f"  -> {len(month_events)} events found")
+            events = parse_events_from_page(
+                page,
+                year,
+                month
+            )
 
-            for ev in month_events:
-                if ev["id"] in seen_ids:
+            print(f"  events found: {len(events)}")
+
+            for event in events:
+
+                if event["id"] in seen_ids:
                     continue
-                seen_ids.add(ev["id"])
 
-                # LIVE/RELEASE は基本フルメンバーなので詳細ページは見に行かない（負荷軽減）
-                if ev["cat"] not in ("LIVE", "RELEASE"):
-                    try:
-                        page.goto(ev["url"], wait_until="networkidle", timeout=30000)
-                        time.sleep(0.5)
-                        detail_text = page.inner_text("body")
-                        ev["members"] = detect_members(detail_text)
-                    except Exception as ex:
-                        print(f"  !! failed to load detail page {ev['url']}: {ex}", file=sys.stderr)
+                seen_ids.add(event["id"])
 
-                all_events.append(ev)
+                detail = parse_detail_page(
+                    page,
+                    event
+                )
 
-        browser.close()
+                if detail:
+                    all_events.append(detail)
+
+    browser.close()
 
     return all_events
 
 
 def main():
+
     events = scrape()
-    events.sort(key=lambda e: (e["year"], e["month"], e["day"], e["id"]))
+
+    # 日付順に並び替え
+    events.sort(
+        key=lambda e: (
+            e["year"],
+            e["month"],
+            e["day"] if e["day"] else 99,
+            e["id"]
+        )
+    )
 
     output = {
-        "generated_at": datetime.now(timezone(timedelta(hours=9))).isoformat(),
-        "events": events,
+        "generated_at": datetime.now(JST).isoformat(),
+        "events": events
     }
 
-    with open("schedule.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+    with open(
+        "schedule.json",
+        "w",
+        encoding="utf-8"
+    ) as f:
 
-    print(f"Wrote {len(events)} events to schedule.json")
+        json.dump(
+            output,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+    print()
+    print("=" * 40)
+    print(f"TOTAL EVENTS: {len(events)}")
+    print("=" * 40)
 
 
 if __name__ == "__main__":
