@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-30T17:47:25.469226+09:00",
+  "generated_at": "2026-08-30T18:20:21.557149+09:00",
   "events": [
     {
       "year": 2024,
@@ -7638,7 +7638,9 @@
       "cat": "LIVE／EVENT",
       "title": "映画『口に関するアンケート』口プレミア",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1216"
     },
