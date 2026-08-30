@@ -529,6 +529,56 @@ def detect_members(
             return found
 
     # ---------------------------------
+    # LIVE／EVENT
+    # ---------------------------------
+    # ライブ／イベント詳細では「○○が出演」以外にも、
+    # 「○○ 登壇」「出演：○○」「○○ ゲスト出演」などの
+    # 書き方があるため、イベント出演に関係する行を追加で確認する。
+    if category in ("LIVE／EVENT", "LIVE/EVENT"):
+        event_keywords = (
+            "出演",
+            "登壇",
+            "登場",
+            "ゲスト",
+            "パフォーマンス",
+            "ランウェイ",
+            "モデル",
+            "始球式",
+            "セレモニアルピッチ",
+            "トーク",
+        )
+
+        event_lines = [
+            line.strip()
+            for line in upper_text.splitlines()
+            if any(
+                keyword in line
+                for keyword in event_keywords
+            )
+        ]
+
+        event_found = []
+
+        for member_name, slug in MEMBERS.items():
+            member_pattern = (
+                rf"(?<![A-Z])"
+                rf"{re.escape(member_name)}"
+                rf"(?![A-Z])"
+            )
+
+            if any(
+                re.search(
+                    member_pattern,
+                    line
+                )
+                for line in event_lines
+            ):
+                event_found.append(slug)
+
+        if event_found:
+            return event_found
+
+    # ---------------------------------
     # TV / RADIO / WEB など従来の出演判定
     # ---------------------------------
     pattern = (
@@ -594,7 +644,7 @@ def should_refresh_detail(event):
     過去分も含めて詳細を再確認する。
     """
 
-    if event.get("cat") == "MAGAZINE":
+    if event.get("cat") in ("MAGAZINE", "LIVE／EVENT", "LIVE/EVENT"):
         return True
 
     date = event_date(event)
