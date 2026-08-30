@@ -5,10 +5,18 @@ from datetime import datetime, timezone, timedelta
 
 API_KEY = os.environ["YOUTUBE_API_KEY"]
 
-# ME:I公式YouTube
+# ME:I 公式YouTubeチャンネル
 CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
 
 JST = timezone(timedelta(hours=9))
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
+        "Chrome/120 Safari/537.36"
+    )
+}
 
 
 def youtube_get(endpoint, params):
@@ -46,7 +54,47 @@ def get_channel():
     return items[0]
 
 
-def get_latest_videos(uploads_playlist_id, max_results=10):
+def is_youtube_short(video_id):
+    """
+    YouTube の /shorts/{video_id} を確認して
+    Shorts として扱われている動画を判定する。
+    """
+
+    shorts_url = (
+        f"https://www.youtube.com/shorts/{video_id}"
+    )
+
+    try:
+        response = requests.get(
+            shorts_url,
+            headers=HEADERS,
+            timeout=15,
+            allow_redirects=True,
+        )
+
+        final_url = response.url
+
+        # Shorts のURLのままならShorts
+        if "/shorts/" in final_url:
+            return True
+
+        return False
+
+    except requests.RequestException as e:
+        print(
+            f"Shorts check failed: {video_id}: {e}"
+        )
+
+        # 判定に失敗した場合は
+        # 誤って通常動画を消さないため残す
+        return False
+
+
+def get_latest_videos(
+    uploads_playlist_id,
+    max_results=30,
+    output_limit=10,
+):
     data = youtube_get(
         "playlistItems",
         {
@@ -63,17 +111,46 @@ def get_latest_videos(uploads_playlist_id, max_results=10):
         content = item.get("contentDetails", {})
 
         video_id = content.get("videoId")
+
         if not video_id:
             continue
 
-        thumbnails = snippet.get("thumbnails", {})
+        print(
+            f"Checking: {snippet.get('title', '')}"
+        )
+
+        if is_youtube_short(video_id):
+            print(
+                f"  SKIP SHORTS: {video_id}"
+            )
+            continue
+
+        thumbnails = snippet.get(
+            "thumbnails",
+            {}
+        )
 
         thumbnail = (
-            thumbnails.get("maxres", {}).get("url")
-            or thumbnails.get("standard", {}).get("url")
-            or thumbnails.get("high", {}).get("url")
-            or thumbnails.get("medium", {}).get("url")
-            or thumbnails.get("default", {}).get("url")
+            thumbnails.get(
+                "maxres",
+                {}
+            ).get("url")
+            or thumbnails.get(
+                "standard",
+                {}
+            ).get("url")
+            or thumbnails.get(
+                "high",
+                {}
+            ).get("url")
+            or thumbnails.get(
+                "medium",
+                {}
+            ).get("url")
+            or thumbnails.get(
+                "default",
+                {}
+            ).get("url")
             or ""
         )
 
@@ -82,15 +159,31 @@ def get_latest_videos(uploads_playlist_id, max_results=10):
                 "id": f"youtube_{video_id}",
                 "platform": "youtube",
                 "video_id": video_id,
-                "title": snippet.get("title", ""),
+                "title": snippet.get(
+                    "title",
+                    ""
+                ),
                 "published_at": content.get(
                     "videoPublishedAt",
-                    snippet.get("publishedAt", ""),
+                    snippet.get(
+                        "publishedAt",
+                        ""
+                    ),
                 ),
                 "thumbnail": thumbnail,
-                "url": f"https://www.youtube.com/watch?v={video_id}",
+                "url": (
+                    "https://www.youtube.com/"
+                    f"watch?v={video_id}"
+                ),
             }
         )
+
+        print(
+            f"  ADD NORMAL VIDEO: {video_id}"
+        )
+
+        if len(posts) >= output_limit:
+            break
 
     return posts
 
@@ -106,11 +199,14 @@ def main():
 
     posts = get_latest_videos(
         uploads_playlist_id,
-        max_results=10,
+        max_results=30,
+        output_limit=10,
     )
 
     output = {
-        "generated_at": datetime.now(JST).isoformat(),
+        "generated_at": datetime.now(
+            JST
+        ).isoformat(),
         "posts": posts,
     }
 
@@ -128,9 +224,19 @@ def main():
 
     print("=" * 50)
     print("YouTube SNS fetch complete")
-    print(f"Channel: {channel['snippet']['title']}")
-    print(f"Posts: {len(posts)}")
-    print("sns.json generated")
+    print(
+        f"Channel: "
+        f"{channel['snippet']['title']}"
+    )
+    print(
+        f"Normal videos: {len(posts)}"
+    )
+    print(
+        "Shorts were excluded."
+    )
+    print(
+        "sns.json generated"
+    )
     print("=" * 50)
 
 
