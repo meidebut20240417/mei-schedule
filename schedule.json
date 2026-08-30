@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-30T16:49:27.261650+09:00",
+  "generated_at": "2026-08-30T17:47:25.469226+09:00",
   "events": [
     {
       "year": 2024,
@@ -3345,7 +3345,9 @@
       "cat": "MAGAZINE",
       "title": "BRUTUS No.1024",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/557"
     },
@@ -3667,7 +3669,10 @@
       "cat": "MAGAZINE",
       "title": "B-PASS 2025年5月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "ran"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/648"
     },
@@ -3702,7 +3707,10 @@
       "cat": "MAGAZINE",
       "title": "MG(NO.28)",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "ran"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/597"
     },
@@ -3755,7 +3763,9 @@
       "cat": "MAGAZINE",
       "title": "nicola 2025年5月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "ran"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/651"
     },
@@ -3766,7 +3776,10 @@
       "cat": "MAGAZINE",
       "title": "サンデー毎日 2025年4/13号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "ran"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/635"
     },
@@ -4197,7 +4210,9 @@
       "cat": "MAGAZINE",
       "title": "BARFOUT! 2025年5月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/646"
     },
@@ -4233,7 +4248,9 @@
       "cat": "MAGAZINE",
       "title": "non-no 2025年6月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "cocoro"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/647"
     },
@@ -4244,7 +4261,10 @@
       "cat": "MAGAZINE",
       "title": "読売中高生新聞",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "ayane",
+        "keiko"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/699"
     },
@@ -4416,7 +4436,9 @@
       "cat": "MAGAZINE",
       "title": "おとなのデジタルTVナビ",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/722"
     },
@@ -4440,7 +4462,10 @@
       "cat": "MAGAZINE",
       "title": "月刊TVnavi 6月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "ran"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/705"
     },
@@ -4547,7 +4572,9 @@
       "cat": "MAGAZINE",
       "title": "日本映画navi vol.117",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/727"
     },
@@ -5094,7 +5121,10 @@
       "cat": "MAGAZINE",
       "title": "Ray 2025年8月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "ran",
+        "shizuku"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/759"
     },
@@ -5967,7 +5997,9 @@
       "cat": "MAGAZINE",
       "title": "JELLY 2025 秋号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "rinon"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/897"
     },
@@ -5978,7 +6010,10 @@
       "cat": "MAGAZINE",
       "title": "ch FILES 2025年9月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "kokona",
+        "rinon"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/867"
     },
@@ -5989,7 +6024,10 @@
       "cat": "MAGAZINE",
       "title": "non-no 2025年10月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu",
+        "ayane"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/879"
     },
@@ -6011,7 +6049,10 @@
       "cat": "MAGAZINE",
       "title": "ACTIMAGE Vol.14",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "ayane",
+        "kokona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/917"
     },
@@ -6033,7 +6074,9 @@
       "cat": "MAGAZINE",
       "title": "美的 2025年10月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/884"
     },
@@ -6066,7 +6109,10 @@
       "cat": "MAGAZINE",
       "title": "月刊TVnavi 10月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "ayane",
+        "rinon"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/922"
     },
@@ -6115,7 +6161,10 @@
       "cat": "MAGAZINE",
       "title": "anan 2460号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu",
+        "kokona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/923"
     },
@@ -6948,7 +6997,10 @@
       "cat": "MAGAZINE",
       "title": "LARME 067",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "shizuku",
+        "keiko"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1036"
     },
@@ -6972,7 +7024,10 @@
       "cat": "MAGAZINE",
       "title": "Zipper 2025-2026年冬号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "rinon",
+        "tsuzumi"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/966"
     },
@@ -7518,7 +7573,9 @@
       "cat": "MAGAZINE",
       "title": "S Cawaii!特別編集 マブ ～永遠の絆～",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1168"
     },
@@ -7631,7 +7688,10 @@
       "cat": "MAGAZINE",
       "title": "NAIL VENUS 2026 Summer",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "keiko"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1224"
     },
@@ -7642,7 +7702,9 @@
       "cat": "MAGAZINE",
       "title": "FINGER SUIT ネイルウェアセットBOOK",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "rinon"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1163"
     },
@@ -7653,7 +7715,10 @@
       "cat": "MAGAZINE",
       "title": "LARME 069",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "suzu",
+        "rinon"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1221"
     },
@@ -7664,7 +7729,10 @@
       "cat": "MAGAZINE",
       "title": "S Cawaii! 2026年8月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu",
+        "suzu"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1197"
     },
@@ -7753,7 +7821,9 @@
       "cat": "MAGAZINE",
       "title": "IDOL FILE Vol.41",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1164"
     },
@@ -7788,7 +7858,11 @@
       "cat": "MAGAZINE",
       "title": "シティ情報ふくおか 2026年7月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "miu",
+        "ayane"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1223"
     },
@@ -8023,7 +8097,9 @@
       "cat": "MAGAZINE",
       "title": "月刊わんこ vol.32 Special Edition",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "keiko"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1272"
     },
@@ -8228,7 +8304,11 @@
       "cat": "MAGAZINE",
       "title": "BARFOUT! 2026年8月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu",
+        "keiko",
+        "tsuzumi"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1271"
     },
@@ -8731,7 +8811,12 @@
       "cat": "MAGAZINE",
       "title": "PREPPY 2026年9月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona",
+        "suzu",
+        "ayane",
+        "rinon"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1238"
     },
@@ -9431,7 +9516,9 @@
       "cat": "MAGAZINE",
       "title": "IDOL FILE Vol.42",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "momona"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1406"
     },
