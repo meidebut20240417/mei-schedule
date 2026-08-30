@@ -475,12 +475,62 @@ def parse_month(
 
 
 def detect_members(
-    detail_text
+    detail_text,
+    category=""
 ):
     upper_text = detail_text.upper()
 
     found = []
 
+    # ---------------------------------
+    # MAGAZINE
+    # ---------------------------------
+    # 雑誌ページでは「○○が出演」ではなく
+    # 「MIU インタビュー」「MIU、KEIKO 掲載」などの
+    # 表記になることがあるため、雑誌系キーワードを含む行だけを調べる。
+    if category == "MAGAZINE":
+        magazine_keywords = (
+            "インタビュー",
+            "掲載",
+            "登場",
+            "表紙",
+            "特集",
+            "モデル",
+            "撮り下ろし",
+            "撮りおろし",
+        )
+
+        magazine_lines = [
+            line.strip()
+            for line in upper_text.splitlines()
+            if any(
+                keyword in line
+                for keyword in magazine_keywords
+            )
+        ]
+
+        for member_name, slug in MEMBERS.items():
+            member_pattern = (
+                rf"(?<![A-Z])"
+                rf"{re.escape(member_name)}"
+                rf"(?![A-Z])"
+            )
+
+            if any(
+                re.search(
+                    member_pattern,
+                    line
+                )
+                for line in magazine_lines
+            ):
+                found.append(slug)
+
+        if found:
+            return found
+
+    # ---------------------------------
+    # TV / RADIO / WEB など従来の出演判定
+    # ---------------------------------
     pattern = (
         r"([A-Z、,\s]{2,100})"
         r"(?:が|は)"
@@ -539,7 +589,13 @@ def should_refresh_detail(event):
     """
     直近7日〜未来の予定は
     キャッシュがあっても詳細を再取得する。
+
+    MAGAZINE は出演メンバー表記が「出演」以外の形になることがあるため、
+    過去分も含めて詳細を再確認する。
     """
+
+    if event.get("cat") == "MAGAZINE":
+        return True
 
     date = event_date(event)
 
@@ -661,7 +717,8 @@ def enrich_members(
             )
 
             members = detect_members(
-                detail_text
+                detail_text,
+                event.get("cat", "")
             )
 
             event["members"] = (
