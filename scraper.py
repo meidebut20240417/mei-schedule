@@ -548,14 +548,30 @@ def detect_members(
             "トーク",
         )
 
-        event_lines = [
+        # 「◾︎登壇者」の次の行に実際の名前が載るケースがあるため、
+        # キーワード行そのものだけでなく前後2行もまとめて確認する。
+        raw_lines = [
             line.strip()
             for line in upper_text.splitlines()
+            if line.strip()
+        ]
+
+        event_candidate_lines = []
+
+        for i, line in enumerate(raw_lines):
             if any(
                 keyword in line
                 for keyword in event_keywords
-            )
-        ]
+            ):
+                start = max(0, i - 2)
+                end = min(
+                    len(raw_lines),
+                    i + 3
+                )
+
+                event_candidate_lines.extend(
+                    raw_lines[start:end]
+                )
 
         event_found = []
 
@@ -571,7 +587,7 @@ def detect_members(
                     member_pattern,
                     line
                 )
-                for line in event_lines
+                for line in event_candidate_lines
             ):
                 event_found.append(slug)
 
