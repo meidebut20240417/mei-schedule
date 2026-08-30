@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 API_KEY = os.environ["YOUTUBE_API_KEY"]
 
 # ME:I公式YouTube
-CHANNEL_HANDLE = "@official_me_i"
+CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
 
 JST = timezone(timedelta(hours=9))
 
@@ -32,7 +32,7 @@ def get_channel():
         "channels",
         {
             "part": "snippet,contentDetails",
-            "forHandle": CHANNEL_HANDLE,
+            "id": CHANNEL_ID,
         },
     )
 
@@ -40,7 +40,7 @@ def get_channel():
 
     if not items:
         raise RuntimeError(
-            f"YouTube channel not found: {CHANNEL_HANDLE}"
+            f"YouTube channel not found: {CHANNEL_ID}"
         )
 
     return items[0]
