@@ -5,7 +5,6 @@ from datetime import datetime, timezone, timedelta
 
 API_KEY = os.environ["YOUTUBE_API_KEY"]
 
-# ME:I 公式YouTubeチャンネル
 CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
 
 JST = timezone(timedelta(hours=9))
@@ -55,11 +54,6 @@ def get_channel():
 
 
 def is_youtube_short(video_id):
-    """
-    YouTube の /shorts/{video_id} を確認して
-    Shorts として扱われている動画を判定する。
-    """
-
     shorts_url = (
         f"https://www.youtube.com/shorts/{video_id}"
     )
@@ -72,28 +66,21 @@ def is_youtube_short(video_id):
             allow_redirects=True,
         )
 
-        final_url = response.url
-
-        # Shorts のURLのままならShorts
-        if "/shorts/" in final_url:
-            return True
-
-        return False
+        return "/shorts/" in response.url
 
     except requests.RequestException as e:
         print(
             f"Shorts check failed: {video_id}: {e}"
         )
 
-        # 判定に失敗した場合は
-        # 誤って通常動画を消さないため残す
+        # 判定できなかった場合は通常動画扱い
         return False
 
 
-def get_latest_videos(
+def get_latest_posts(
     uploads_playlist_id,
     max_results=30,
-    output_limit=10,
+    output_limit=15,
 ):
     data = youtube_get(
         "playlistItems",
@@ -115,15 +102,11 @@ def get_latest_videos(
         if not video_id:
             continue
 
-        print(
-            f"Checking: {snippet.get('title', '')}"
-        )
+        title = snippet.get("title", "")
 
-        if is_youtube_short(video_id):
-            print(
-                f"  SKIP SHORTS: {video_id}"
-            )
-            continue
+        print(f"Checking: {title}")
+
+        is_short = is_youtube_short(video_id)
 
         thumbnails = snippet.get(
             "thumbnails",
@@ -154,15 +137,37 @@ def get_latest_videos(
             or ""
         )
 
+        if is_short:
+            platform = "youtube-short"
+            platform_label = "TikTok / YouTube"
+            url = (
+                "https://www.youtube.com/"
+                f"shorts/{video_id}"
+            )
+
+            print(
+                f"  ADD SHORT: {video_id}"
+            )
+
+        else:
+            platform = "youtube"
+            platform_label = "YouTube"
+            url = (
+                "https://www.youtube.com/"
+                f"watch?v={video_id}"
+            )
+
+            print(
+                f"  ADD NORMAL VIDEO: {video_id}"
+            )
+
         posts.append(
             {
                 "id": f"youtube_{video_id}",
-                "platform": "youtube",
+                "platform": platform,
+                "platform_label": platform_label,
                 "video_id": video_id,
-                "title": snippet.get(
-                    "title",
-                    ""
-                ),
+                "title": title,
                 "published_at": content.get(
                     "videoPublishedAt",
                     snippet.get(
@@ -171,15 +176,8 @@ def get_latest_videos(
                     ),
                 ),
                 "thumbnail": thumbnail,
-                "url": (
-                    "https://www.youtube.com/"
-                    f"watch?v={video_id}"
-                ),
+                "url": url,
             }
-        )
-
-        print(
-            f"  ADD NORMAL VIDEO: {video_id}"
         )
 
         if len(posts) >= output_limit:
@@ -197,10 +195,10 @@ def main():
         ["uploads"]
     )
 
-    posts = get_latest_videos(
+    posts = get_latest_posts(
         uploads_playlist_id,
         max_results=30,
-        output_limit=10,
+        output_limit=15,
     )
 
     output = {
@@ -222,6 +220,18 @@ def main():
             indent=2,
         )
 
+    normal_count = sum(
+        1
+        for post in posts
+        if post["platform"] == "youtube"
+    )
+
+    short_count = sum(
+        1
+        for post in posts
+        if post["platform"] == "youtube-short"
+    )
+
     print("=" * 50)
     print("YouTube SNS fetch complete")
     print(
@@ -229,10 +239,13 @@ def main():
         f"{channel['snippet']['title']}"
     )
     print(
-        f"Normal videos: {len(posts)}"
+        f"Normal videos: {normal_count}"
     )
     print(
-        "Shorts were excluded."
+        f"Shorts: {short_count}"
+    )
+    print(
+        f"Total posts: {len(posts)}"
     )
     print(
         "sns.json generated"
