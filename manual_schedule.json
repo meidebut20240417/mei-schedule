@@ -1,0 +1,15 @@
+[
+  {
+    "id": "manual-20260920-001",
+    "year": 2026,
+    "month": 9,
+    "day": 20,
+    "cat": "LIVE／EVENT",
+    "title": "追加するイベント名",
+    "time": "18:00-20:00",
+    "members": ["momona", "ran"],
+    "note": "必要に応じて説明",
+    "url": "https://example.com/event",
+    "source": "manual"
+  }
+]
