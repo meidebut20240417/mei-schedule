@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-09-05T00:00:00+09:00",
+  "tours": [
+    {
+      "id": "sample-tour",
+      "name": "LIVE DATA SAMPLE",
+      "startDate": "2026-09-12",
+      "endDate": "2026-09-23",
+      "shows": [
+        {
+          "id": "sample-kobe-01",
+          "date": "2026-09-12",
+          "name": "神戸公演 DAY 1",
+          "venue": "神戸ワールド記念ホール",
+          "setlist": [
+            { "order": 1, "type": "song", "title": "曲名を入力" },
+            { "order": 2, "type": "song", "title": "曲名を入力" },
+            { "order": 3, "type": "mc", "label": "MC" },
+            { "order": 4, "type": "song", "title": "曲名を入力" },
+            { "order": 5, "type": "section", "label": "アンコール" },
+            { "order": 6, "type": "song", "title": "曲名を入力" }
+          ],
+          "xPosts": []
+        }
+      ]
+    }
+  ]
