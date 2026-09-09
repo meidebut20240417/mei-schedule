@@ -1,6 +1,16 @@
 {
-  "generated_at": "2026-09-09T19:55:40.988990+09:00",
+  "generated_at": "2026-09-09T20:05:36.901049+09:00",
   "posts": [
+    {
+      "id": "youtube_SWw-VNhsMs0",
+      "platform": "youtube",
+      "platform_label": "YouTube",
+      "video_id": "SWw-VNhsMs0",
+      "title": "[ Director's Cut ] ME:I ゆにっとVlog* 06",
+      "published_at": "2026-09-09T11:00:27Z",
+      "thumbnail": "https://i.ytimg.com/vi/SWw-VNhsMs0/maxresdefault.jpg",
+      "url": "https://www.youtube.com/watch?v=SWw-VNhsMs0"
+    },
     {
       "id": "youtube_9ACoJKAt5G0",
       "platform": "youtube-short",
@@ -140,16 +150,6 @@
       "published_at": "2026-09-04T13:00:28Z",
       "thumbnail": "https://i.ytimg.com/vi/MfKHhNj9_1c/maxresdefault.jpg",
       "url": "https://www.youtube.com/shorts/MfKHhNj9_1c"
-    },
-    {
-      "id": "youtube_aCng8VxUrBw",
-      "platform": "youtube-short",
-      "platform_label": "TikTok / YouTube",
-      "video_id": "aCng8VxUrBw",
-      "title": "📱: ⊹˚₊ #MIU 𖧧 #全肯定ダンス 𖧧 ˒˒ with #MASHIRO さん ( #MADEIN ) ⚘⚘ #ME_I_花咲く道 ⚘⚘ #ME_I #ミーアイ #미아이 #shorts",
-      "published_at": "2026-09-04T12:26:03Z",
-      "thumbnail": "https://i.ytimg.com/vi/aCng8VxUrBw/maxresdefault.jpg",
-      "url": "https://www.youtube.com/shorts/aCng8VxUrBw"
     }
   ]
 }
