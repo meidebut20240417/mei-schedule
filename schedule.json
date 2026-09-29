@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-15T03:22:02.453972+09:00",
+  "generated_at": "2026-09-30T07:10:22.766442+09:00",
   "events": [
     {
       "year": 2024,
@@ -9691,6 +9691,17 @@
       "year": 2026,
       "month": 9,
       "day": 22,
+      "cat": "TV",
+      "title": "CX『ME:Iの会いにきたよ！』",
+      "time": "1:25-1:55",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1436"
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "day": 22,
       "cat": "LIVE／EVENT",
       "title": "2026 ME:I 2ND ARENA LIVE TOUR \"ME:I WAY\"@マリンメッセ福岡B館",
       "time": "",
@@ -9723,6 +9734,17 @@
     {
       "year": 2026,
       "month": 9,
+      "day": 29,
+      "cat": "TV",
+      "title": "CX『ME:Iの会いにきたよ！』",
+      "time": "1:25-1:55",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1440"
+    },
+    {
+      "year": 2026,
+      "month": 9,
       "day": 30,
       "cat": "BIRTHDAY",
       "title": "RINON's Birthday！",
@@ -9730,6 +9752,19 @@
       "members": "ALL",
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1060"
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "day": 7,
+      "cat": "TV",
+      "title": "CTV『センビキ 答えは線を引くだけです』",
+      "time": "19:00-21:00",
+      "members": [
+        "keiko"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1431"
     },
     {
       "year": 2026,
@@ -9752,6 +9787,17 @@
       "members": "ALL",
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1291"
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "day": 22,
+      "cat": "WEB MEDIA",
+      "title": "Lemino『美味美味ME:I #1』〜",
+      "time": "19:00",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1446"
     },
     {
       "year": 2026,
@@ -9800,6 +9846,19 @@
     {
       "year": 2026,
       "month": 12,
+      "day": 1,
+      "cat": "MAGAZINE",
+      "title": "MASHA ART PROJECT 創刊号",
+      "time": "",
+      "members": [
+        "rinon"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1193"
+    },
+    {
+      "year": 2026,
+      "month": 12,
       "day": 2,
       "cat": "RELEASE",
       "title": "5TH SINGLE『Rock & Roll Pretty』",
@@ -9811,6 +9870,17 @@
     {
       "year": 2026,
       "month": 12,
+      "day": 4,
+      "cat": "RELEASE",
+      "title": "映画『口に関するアンケート』Blu-ray & DVD",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1445"
+    },
+    {
+      "year": 2026,
+      "month": 12,
       "day": 16,
       "cat": "BIRTHDAY",
       "title": "SUZU's Birthday！",
@@ -9818,6 +9888,17 @@
       "members": "ALL",
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1063"
+    },
+    {
+      "year": 2027,
+      "month": 1,
+      "day": 13,
+      "cat": "RELEASE",
+      "title": "『2026 ME:I 2ND ARENA LIVE TOUR \"ME:I WAY\"』Blu-ray & DVD",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1442"
     }
   ]
 }
