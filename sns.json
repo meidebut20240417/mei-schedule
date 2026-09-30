@@ -1,6 +1,16 @@
 {
-  "generated_at": "2026-09-30T11:23:10.453374+09:00",
+  "generated_at": "2026-09-30T17:45:19.124017+09:00",
   "posts": [
+    {
+      "id": "youtube_R86yZRU7T7Y",
+      "platform": "youtube",
+      "platform_label": "YouTube",
+      "video_id": "R86yZRU7T7Y",
+      "title": "〔 petit ME:I ᡣ𐭩.⋆⁺ 〕LuckyFes'26 Behind the Scene",
+      "published_at": "2026-09-30T08:00:26Z",
+      "thumbnail": "https://i.ytimg.com/vi/R86yZRU7T7Y/maxresdefault.jpg",
+      "url": "https://www.youtube.com/watch?v=R86yZRU7T7Y"
+    },
     {
       "id": "youtube_27PAK7U3AjI",
       "platform": "youtube",
@@ -140,16 +150,6 @@
       "published_at": "2026-09-21T09:36:10Z",
       "thumbnail": "https://i.ytimg.com/vi/MKPIcfyQ49g/maxresdefault.jpg",
       "url": "https://www.youtube.com/shorts/MKPIcfyQ49g"
-    },
-    {
-      "id": "youtube_3blnrPHtEN4",
-      "platform": "youtube-short",
-      "platform_label": "TikTok / YouTube",
-      "video_id": "3blnrPHtEN4",
-      "title": "『ME:Iの会いにきたよ！』第23話 📺´-  #SUZU & #KEIKO & #RINON から感想コメントが届きました🎤💖 #ME_Iの会いにきたよ #ME_I #shorts",
-      "published_at": "2026-09-21T09:28:34Z",
-      "thumbnail": "https://i.ytimg.com/vi/3blnrPHtEN4/maxresdefault.jpg",
-      "url": "https://www.youtube.com/shorts/3blnrPHtEN4"
     }
   ]
 }
