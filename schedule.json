@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-02T07:36:36.781247+09:00",
+  "generated_at": "2026-10-02T14:12:46.427749+09:00",
   "events": [
     {
       "year": 2024,
@@ -9752,6 +9752,19 @@
       "members": "ALL",
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1060"
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "day": 6,
+      "cat": "TV",
+      "title": "CTV『ヒューマングルメンタリー オモウマい店』",
+      "time": "19:00-20:00",
+      "members": [
+        "keiko"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1434"
     },
     {
       "year": 2026,
