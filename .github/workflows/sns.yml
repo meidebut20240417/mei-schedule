@@ -69,12 +69,26 @@ jobs:
                   })
               return out
 
+          from email.utils import parsedate_to_datetime
+
           def key(p):
-              try:
-                  d = datetime.fromisoformat(p.get("published_at", "").replace("Z", "+00:00"))
-                  return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
-              except (ValueError, TypeError):
+              value = p.get("published_at", "") or ""
+              if not value:
                   return datetime.min.replace(tzinfo=timezone.utc)
+
+              # ISO 8601 / RFC 2822 のどちらでも正しく比較できるようにする。
+              try:
+                  d = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              except (ValueError, TypeError):
+                  try:
+                      d = parsedate_to_datetime(value)
+                  except (TypeError, ValueError, OverflowError):
+                      return datetime.min.replace(tzinfo=timezone.utc)
+
+              if d.tzinfo is None:
+                  d = d.replace(tzinfo=timezone.utc)
+
+              return d.astimezone(timezone.utc)
 
           x_posts = sns.get_x_posts(limit=15)
           instagram_posts = sns.get_instagram_posts(limit=15)
