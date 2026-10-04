@@ -1241,6 +1241,30 @@ def get_instagram_posts(limit=15):
             item,
             ["pubDate", "dc:date", "published", "updated"],
         )
+        # RSS-Bridgeの一部インスタンスは日時を空欄/独自形式で返す。
+        # 最終sns.jsonの共通ソートで落とされないよう、解釈できない場合は
+        # フィードの掲載順（新しい順）を維持するフォールバック日時を付ける。
+        try:
+            if published_at:
+                parsed_published = datetime.fromisoformat(
+                    published_at.replace("Z", "+00:00")
+                )
+                if parsed_published.tzinfo is None:
+                    parsed_published = parsed_published.replace(tzinfo=timezone.utc)
+                published_at = parsed_published.astimezone(timezone.utc).isoformat()
+            else:
+                raise ValueError("empty published_at")
+        except (ValueError, TypeError):
+            try:
+                parsed_published = parsedate_to_datetime(published_at)
+                if parsed_published.tzinfo is None:
+                    parsed_published = parsed_published.replace(tzinfo=timezone.utc)
+                published_at = parsed_published.astimezone(timezone.utc).isoformat()
+            except (TypeError, ValueError, OverflowError):
+                published_at = (
+                    datetime.now(timezone.utc)
+                    - timedelta(minutes=len(posts))
+                ).isoformat()
 
         image_urls = _image_urls_from_item(item, ns)
 
