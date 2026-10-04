@@ -1,0 +1,23 @@
+name: Instagram Probe
+
+on:
+  push:
+    paths:
+      - ".github/workflows/instagram-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe public RSS-Bridge
+        run: |
+          set -e
+          for base in             "https://rss-bridge.wdavery.com"             "https://rss-bridge.org/bridge01"             "https://rssbridge.flossboxin.org.in"
+          do
+            echo "=== $base ==="
+            curl --max-time 30 --silent --show-error               "$base/?action=display&bridge=InstagramBridge&context=Username&u=official_me_i_&media_type=all&direct_links=on&format=Json"               | head -c 4000 || true
+            echo
+          done
