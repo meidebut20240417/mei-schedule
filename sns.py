@@ -655,7 +655,7 @@ def get_x_posts(limit=15):
 
     posts = []
 
-    for item in _feed_items(root)[:min(max(limit * 10, 100), 150)]:
+    for item in _feed_items(root)[:limit * 3]:
         link = _feed_value(item, ["link", "{http://www.w3.org/2005/Atom}link"])
         guid = _feed_value(item, ["guid", "id"])
         title = _feed_value(item, ["title"])
@@ -775,7 +775,7 @@ def get_instagram_posts(limit=15):
 
     posts = []
 
-    for item in _feed_items(root)[:limit * 3]:
+    for item in _feed_items(root)[:min(max(limit * 10, 100), 150)]:
         link = _feed_value(
             item,
             ["link", "{http://www.w3.org/2005/Atom}link"],
