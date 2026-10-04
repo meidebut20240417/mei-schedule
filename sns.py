@@ -769,6 +769,17 @@ def _get_instagram_posts_instaloader(limit=15):
         )
         loader.context.user_agent = HEADERS["User-Agent"]
 
+        session_id = os.environ.get("INSTAGRAM_SESSION_ID", "")
+        ds_user_id = os.environ.get("INSTAGRAM_DS_USER_ID", "")
+        if session_id and ds_user_id:
+            loader.context._session.cookies.set(
+                "sessionid", session_id, domain=".instagram.com", path="/"
+            )
+            loader.context._session.cookies.set(
+                "ds_user_id", ds_user_id, domain=".instagram.com", path="/"
+            )
+            print("Instagram Instaloader: authenticated session configured")
+
         profile = instaloader.Profile.from_username(
             loader.context,
             INSTAGRAM_USERNAME,
