@@ -835,9 +835,19 @@ def _get_instagram_posts_instaloader(limit=15):
 
 
 def get_instagram_posts(limit=15):
-    feed_urls = [
-        f"{RSSHUB_BASE_URL}/instagram/2/user/{INSTAGRAM_USERNAME}",
-    ]
+    # GitHub Actionsでは認証済みのローカルRSS-Bridgeを使う。
+    # このモードでは公開RSS-BridgeやInstagramへの直接アクセスへフォールバックしない。
+    private_rss_bridge = os.environ.get(
+        "INSTAGRAM_RSS_BRIDGE_PRIVATE",
+        "",
+    ).lower() in {"1", "true", "yes", "on"}
+
+    if private_rss_bridge:
+        feed_urls = []
+    else:
+        feed_urls = [
+            f"{RSSHUB_BASE_URL}/instagram/2/user/{INSTAGRAM_USERNAME}",
+        ]
 
     for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS:
         feed_urls.append(
@@ -986,7 +996,7 @@ def get_instagram_posts(limit=15):
 
         # RSS側が混合投稿を「動画」としてしか返さない場合でも、
         # 投稿ページ自身のog:image/twitter:imageから代表画像を取得する。
-        if not image_urls and link:
+        if not image_urls and link and not private_rss_bridge:
             page_image = _instagram_page_image(link)
             if page_image:
                 image_urls.append(page_image)
@@ -1020,10 +1030,12 @@ def get_instagram_posts(limit=15):
         # あるインスタンスの古い15件が、別インスタンスの新しい投稿を
         # 押し出してしまうのを防ぐ。
 
-    # JSON/Atomに加えてInstaloaderも使う。
-    # 公開プロフィールを直接読む別経路なので、RSS-Bridge側の障害時にも
-    # Instagram画像投稿を取得できるようにする。
-    instaloader_posts = _get_instagram_posts_instaloader(limit=limit)
+    # 認証済みPrivate RSS-Bridgeを使う場合、ここからInstagramへ直接アクセスしない。
+    # 5分ごとのGitHub Actions実行でInstaloaderが毎回Instagramを叩くと、
+    # RSS-Bridgeのキャッシュを使う意味がなくなるため。
+    instaloader_posts = []
+    if not private_rss_bridge:
+        instaloader_posts = _get_instagram_posts_instaloader(limit=limit)
 
     merged_posts = []
     merged_keys = set()
