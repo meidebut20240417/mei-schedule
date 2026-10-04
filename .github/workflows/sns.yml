@@ -34,7 +34,7 @@ jobs:
       - name: Fetch YouTube, X and Instagram posts
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL }}
+          RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
         run: python sns.py
 
       - name: Commit sns.json if changed
