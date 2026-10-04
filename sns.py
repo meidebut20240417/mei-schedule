@@ -958,6 +958,7 @@ def get_instagram_posts(limit=15):
     }
 
     # 複数フィードをURL/GUID単位で重複排除しながら統合。
+    posts = []
     candidates = []
     seen = set()
 
