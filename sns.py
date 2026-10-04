@@ -426,9 +426,28 @@ def get_x_posts(limit=15):
                     content_html = str(item.get("content_html") or "")
                     content = str(item.get("content") or "")
                     serialized_item = json.dumps(item, ensure_ascii=False)
+                    print("X diagnostic content_html length:", len(content_html))
+                    print("X diagnostic content_html has img tag:", "<img" in content_html.lower())
+                    print("X diagnostic content_html has video tag:", "<video" in content_html.lower())
+                    print("X diagnostic content_html has http URL:", "http://" in content_html or "https://" in content_html)
                     print("X diagnostic content_html has pbs.twimg.com:", "pbs.twimg.com" in content_html)
                     print("X diagnostic content has pbs.twimg.com:", "pbs.twimg.com" in content)
                     print("X diagnostic JSON has pbs.twimg.com:", "pbs.twimg.com" in serialized_item)
+                    print(
+                        "X diagnostic content_html media tags:",
+                        re.findall(
+                            r"<(?:img|source|video|a|iframe)[^>]*(?:src|href|poster)=[^>]+>",
+                            content_html,
+                            flags=re.IGNORECASE,
+                        )[:10],
+                    )
+                    print(
+                        "X diagnostic content_html URLs:",
+                        re.findall(
+                            r"https?://[^\\s\\\"'<>]+",
+                            content_html,
+                        )[:20],
+                    )
                     print(
                         "X diagnostic attachment URLs:",
                         [
