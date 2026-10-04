@@ -978,6 +978,87 @@ def _get_instagram_posts_instaloader(limit=15):
         return []
 
 
+def _get_instagram_posts_imginn(limit=15):
+    """Public mirror fallback used only when bridge-only mode is enabled."""
+    url = f"https://imginn.com/{INSTAGRAM_USERNAME}/"
+    try:
+        print(f"Instagram Imginn feed trying: {url}")
+        response = requests.get(url, headers=HEADERS, timeout=30)
+        response.raise_for_status()
+        html = response.text
+
+        post_paths = list(dict.fromkeys(
+            re.findall(r'href=["\\'](/p/[^"\\']+/?)', html, flags=re.IGNORECASE)
+        ))
+        if not post_paths:
+            print("Instagram Imginn: no post links found")
+            return []
+
+        now = datetime.now(timezone.utc)
+        posts = []
+
+        for index, post_path in enumerate(post_paths[:limit * 2]):
+            current_pos = html.find(post_path)
+            following = post_paths[index + 1:index + 3]
+            positions = [html.find(path, current_pos + len(post_path)) for path in following]
+            positions = [pos for pos in positions if pos >= 0]
+            end_pos = min(positions) if positions else min(len(html), current_pos + 12000)
+            chunk = html[current_pos:end_pos]
+
+            media_candidates = re.findall(r'https?://[^\\s<>"\']+', chunk, flags=re.IGNORECASE)
+            media_candidates = [
+                value.replace("&amp;", "&")
+                for value in media_candidates
+                if any(token in value.lower() for token in ("cdninstagram.com", "scontent", "fbcdn.net"))
+            ]
+            media_candidates = list(dict.fromkeys(media_candidates))
+            if not media_candidates:
+                continue
+
+            relative_match = re.search(
+                r'(a|an|\\d+)\\s+(minutes?|hours?|days?|weeks?|months?|years?)\\s+ago',
+                chunk,
+                flags=re.IGNORECASE,
+            )
+            if relative_match:
+                amount_text = relative_match.group(1).lower()
+                unit = relative_match.group(2).lower()
+                amount = 1 if amount_text in {"a", "an"} else int(amount_text)
+                if unit.startswith("minute"):
+                    delta = timedelta(minutes=amount)
+                elif unit.startswith("hour"):
+                    delta = timedelta(hours=amount)
+                elif unit.startswith("day"):
+                    delta = timedelta(days=amount)
+                elif unit.startswith("week"):
+                    delta = timedelta(weeks=amount)
+                elif unit.startswith("month"):
+                    delta = timedelta(days=30 * amount)
+                else:
+                    delta = timedelta(days=365 * amount)
+                published_at = (now - delta).isoformat()
+            else:
+                published_at = (now - timedelta(minutes=index)).isoformat()
+
+            posts.append({
+                "id": f"instagram_imginn_{post_path.rstrip('/').split('/')[-1]}",
+                "platform": "instagram",
+                "platform_label": "Instagram",
+                "title": "Instagram新着投稿",
+                "published_at": published_at,
+                "thumbnail": media_candidates[0],
+                "url": f"https://imginn.com{post_path}",
+            })
+            if len(posts) >= limit:
+                break
+
+        print(f"Instagram Imginn image posts: {len(posts)}")
+        return posts
+    except (requests.RequestException, ValueError, TypeError) as e:
+        print(f"Instagram Imginn feed failed: {e}")
+        return []
+
+
 def get_instagram_posts(limit=15):
     bridge_only = os.environ.get("INSTAGRAM_RSS_BRIDGE_ONLY", "").lower() in {"1", "true", "yes", "on"}
 
@@ -1112,6 +1193,10 @@ def get_instagram_posts(limit=15):
 
     if not roots:
         print("Instagram feed: all Atom sources failed")
+        if bridge_only and not json_posts:
+            mirror_posts = _get_instagram_posts_imginn(limit=limit)
+            if mirror_posts:
+                return mirror_posts
         print(f"Instagram image posts: {len(json_posts)}")
         return json_posts
 
@@ -1195,6 +1280,12 @@ def get_instagram_posts(limit=15):
         # あるインスタンスの古い15件が、別インスタンスの新しい投稿を
         # 押し出してしまうのを防ぐ。
 
+    # RSS-BridgeがAtomを返しても画像を抽出できない場合は、
+    # bridge-only運用では公開ミラーを最後のフォールバックとして使う。
+    mirror_posts = []
+    if bridge_only and not json_posts and not posts:
+        mirror_posts = _get_instagram_posts_imginn(limit=limit)
+
     # 認証済みPrivate RSS-Bridgeを使う場合、ここからInstagramへ直接アクセスしない。
     # 5分ごとのGitHub Actions実行でInstaloaderが毎回Instagramを叩くと、
     # RSS-Bridgeのキャッシュを使う意味がなくなるため。
@@ -1204,7 +1295,7 @@ def get_instagram_posts(limit=15):
 
     merged_posts = []
     merged_keys = set()
-    for post in json_posts + posts + instaloader_posts:
+    for post in json_posts + posts + mirror_posts + instaloader_posts:
         key = post.get("url") or post.get("id")
         if key in merged_keys:
             continue
