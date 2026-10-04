@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
@@ -430,18 +431,32 @@ def get_x_posts(limit=15):
                     ):
                         image_urls.append(image_url)
 
-                # RSS-BridgeのJSON feedでは content_html に画像が
-                # 入る場合もあるので、既存のHTML抽出もフォールバックとして使う。
+                # 公開RSS-BridgeのJSONでは、attachmentsが空でも
+                # content_htmlや他のフィールド内にpbs.twimg.comのURLが
+                # 直接残っていることがある。HTMLをXMLとしてparseすると
+                # X側の不正な文字列でParseErrorになるため、ここでは
+                # JSON化したitem全体から画像URLだけを安全に拾う。
                 if not image_urls:
-                    content_html = item.get("content_html") or ""
-                    if content_html:
-                        temp_root = ET.fromstring(
-                            f"<root>{content_html}</root>"
+                    serialized_item = json.dumps(item, ensure_ascii=False)
+                    image_urls.extend(
+                        re.findall(
+                            r"https?://pbs\\.twimg\\.com/media/[^\\s\\\"'<>\\\\]+",
+                            serialized_item,
                         )
-                        image_urls = _image_urls_from_item(
-                            temp_root,
-                            {"media": "http://search.yahoo.com/mrss/"},
+                    )
+
+                if not image_urls:
+                    # pbs.twimg.com以外の一般的な画像URLも拾う。
+                    serialized_item = json.dumps(item, ensure_ascii=False)
+                    image_urls.extend(
+                        re.findall(
+                            r"https?://[^\\s\\\"'<>\\\\]+\\.(?:jpg|jpeg|png|webp)(?:\\?[^\\s\\\"'<>\\\\]*)?",
+                            serialized_item,
+                            flags=re.IGNORECASE,
                         )
+                    )
+
+                image_urls = list(dict.fromkeys(image_urls))
 
                 if not image_urls:
                     continue
