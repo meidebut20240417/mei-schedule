@@ -738,6 +738,96 @@ def _instagram_page_image(url, timeout=15):
     return ""
 
 
+def _get_instagram_posts_instaloader(limit=15):
+    """
+    Instaloader fallback for public Instagram profiles.
+
+    - Single image posts: include.
+    - Carousel posts: include when at least one sidecar item is an image.
+    - Video/reel-only posts: exclude.
+    """
+    try:
+        import instaloader
+    except ImportError as e:
+        print(f"Instagram Instaloader unavailable: {e}")
+        return []
+
+    try:
+        loader = instaloader.Instaloader(
+            quiet=True,
+            download_pictures=False,
+            download_videos=False,
+            download_video_thumbnails=False,
+            save_metadata=False,
+            compress_json=False,
+        )
+        loader.context.user_agent = HEADERS["User-Agent"]
+
+        profile = instaloader.Profile.from_username(
+            loader.context,
+            INSTAGRAM_USERNAME,
+        )
+
+        posts = []
+        seen = set()
+
+        for post in profile.get_posts():
+            shortcode = str(getattr(post, "shortcode", "") or "")
+            if not shortcode or shortcode in seen:
+                continue
+            seen.add(shortcode)
+
+            image_urls = []
+
+            if getattr(post, "typename", "") == "GraphSidecar":
+                try:
+                    for node in post.get_sidecar_nodes():
+                        if not getattr(node, "is_video", False):
+                            image_url = str(getattr(node, "display_url", "") or "")
+                            if image_url.startswith(("http://", "https://")):
+                                image_urls.append(image_url)
+                except Exception as e:
+                    print(f"Instagram Instaloader sidecar failed: {shortcode}: {e}")
+            elif not getattr(post, "is_video", False):
+                image_url = str(getattr(post, "url", "") or "")
+                if image_url.startswith(("http://", "https://")):
+                    image_urls.append(image_url)
+
+            image_urls = list(dict.fromkeys(image_urls))
+
+            # 動画専用/Reel専用投稿は除外。
+            if not image_urls:
+                continue
+
+            published_at = ""
+            date_utc = getattr(post, "date_utc", None)
+            if date_utc is not None:
+                published_at = date_utc.replace(tzinfo=timezone.utc).isoformat()
+
+            posts.append(
+                {
+                    "id": f"instagram_{shortcode}",
+                    "platform": "instagram",
+                    "platform_label": "Instagram",
+                    "title": str(getattr(post, "caption", "") or "").split("\n", 1)[0][:200]
+                        or "Instagram新着投稿",
+                    "published_at": published_at,
+                    "thumbnail": image_urls[0],
+                    "url": f"https://www.instagram.com/p/{shortcode}/",
+                }
+            )
+
+            if len(posts) >= limit:
+                break
+
+        print(f"Instagram Instaloader image posts: {len(posts)}")
+        return posts
+
+    except Exception as e:
+        print(f"Instagram Instaloader failed: {type(e).__name__}: {e}")
+        return []
+
+
 def get_instagram_posts(limit=15):
     feed_urls = [
         f"{RSSHUB_BASE_URL}/instagram/2/user/{INSTAGRAM_USERNAME}",
@@ -922,15 +1012,26 @@ def get_instagram_posts(limit=15):
         if len(posts) >= limit:
             break
 
-    # JSONとAtomの両経路を統合。JSONを優先しつつ、URLが同じ投稿は重複させない。
+    # JSON/Atomに加えてInstaloaderも使う。
+    # 公開プロフィールを直接読む別経路なので、RSS-Bridge側の障害時にも
+    # Instagram画像投稿を取得できるようにする。
+    instaloader_posts = _get_instagram_posts_instaloader(limit=limit)
+
     merged_posts = []
     merged_keys = set()
-    for post in json_posts + posts:
+    for post in json_posts + posts + instaloader_posts:
         key = post.get("url") or post.get("id")
         if key in merged_keys:
             continue
         merged_keys.add(key)
         merged_posts.append(post)
+
+    # Instagram側でも新しい順にして、呼び出し側へ最大limit件を返す。
+    merged_posts.sort(
+        key=lambda post: post.get("published_at", ""),
+        reverse=True,
+    )
+    merged_posts = merged_posts[:limit]
 
     print(f"Instagram image posts: {len(merged_posts)}")
     return merged_posts
