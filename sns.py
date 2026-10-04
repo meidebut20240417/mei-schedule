@@ -704,6 +704,39 @@ def get_x_posts(limit=15):
     print(f"X image posts: {len(posts)}")
     return posts
 
+def _instagram_page_image(url, timeout=15):
+    """Instagram投稿ページのOG画像を取得する最後のフォールバック。"""
+    if not url or "instagram.com" not in url:
+        return ""
+
+    try:
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=timeout,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+        html = response.text
+
+        for pattern in (
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+            r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']',
+        ):
+            match = re.search(pattern, html, flags=re.IGNORECASE | re.DOTALL)
+            if match:
+                image_url = match.group(1).strip()
+                if image_url.startswith(("http://", "https://")):
+                    return image_url
+
+    except requests.RequestException as e:
+        print(f"Instagram page image failed: {url}: {e}")
+
+    return ""
+
+
 def get_instagram_posts(limit=15):
     feed_urls = [
         f"{RSSHUB_BASE_URL}/instagram/2/user/{INSTAGRAM_USERNAME}",
@@ -757,8 +790,15 @@ def get_instagram_posts(limit=15):
 
         image_urls = _image_urls_from_item(item, ns)
 
-        # Instagramは画像付き投稿だけ採用。
-        # 画像なしのリール/動画専用投稿は除外。
+        # RSS側が混合投稿を「動画」としてしか返さない場合でも、
+        # 投稿ページ自身のog:image/twitter:imageから代表画像を取得する。
+        if not image_urls and link:
+            page_image = _instagram_page_image(link)
+            if page_image:
+                image_urls.append(page_image)
+
+        # 画像付き投稿を採用。画像+動画の混合投稿もここに含まれる。
+        # 画像なしの動画専用投稿だけは除外。
         if not image_urls:
             continue
 
