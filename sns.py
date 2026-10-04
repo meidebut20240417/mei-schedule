@@ -759,6 +759,72 @@ def get_instagram_posts(limit=15):
                 f"&media_type={media_type}&direct_links=on&format=Atom"
             )
 
+    # RSS-BridgeのJson出力を追加で試す。JSONのenclosures/contentには
+    # カルーセル内の画像が残るため、画像+動画の混在投稿を拾いやすい。
+    json_posts = []
+    json_seen = set()
+
+    for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS:
+        for media_type in ("all", "picture", "multiple"):
+            json_url = (
+                f"{base}/?action=display&bridge=InstagramBridge"
+                f"&context=Username&u={INSTAGRAM_USERNAME}"
+                f"&media_type={media_type}&direct_links=on&format=Json"
+            )
+            try:
+                print(f"Instagram JSON feed trying: {json_url}")
+                data = _get_rss_bridge_json(json_url, timeout=25)
+                items = data.get("items", []) if isinstance(data, dict) else []
+                print(f"Instagram JSON feed succeeded: {len(items)} items")
+                for item in items[:min(max(limit * 10, 100), 150)]:
+                    if not isinstance(item, dict):
+                        continue
+                    link = str(item.get("uri") or item.get("url") or "")
+                    uid = str(item.get("uid") or item.get("id") or link)
+                    if uid in json_seen:
+                        continue
+                    json_seen.add(uid)
+                    image_urls = []
+                    for enclosure in item.get("enclosures", []) or []:
+                        if isinstance(enclosure, str):
+                            value = enclosure
+                        elif isinstance(enclosure, dict):
+                            value = str(enclosure.get("url") or enclosure.get("href") or "")
+                        else:
+                            continue
+                        lowered = value.lower()
+                        if ("cdninstagram" in lowered or "scontent" in lowered or "fbcdn" in lowered
+                                or any(lowered.split("?")[0].endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))):
+                            image_urls.append(value)
+                    content_html = str(item.get("content") or "")
+                    for pattern in (
+                        r'<img[^>]+src=["\']([^"\']+)',
+                        r'<source[^>]+poster=["\']([^"\']+)',
+                        r'<video[^>]+poster=["\']([^"\']+)',
+                    ):
+                        image_urls.extend(re.findall(pattern, content_html, flags=re.IGNORECASE | re.DOTALL))
+                    image_urls = list(dict.fromkeys(url for url in image_urls if url.startswith(("http://", "https://"))))
+                    if not image_urls:
+                        continue
+                    timestamp = item.get("timestamp")
+                    try:
+                        published_at = datetime.fromtimestamp(float(timestamp), timezone.utc).isoformat() if timestamp else ""
+                    except (TypeError, ValueError, OverflowError):
+                        published_at = str(timestamp or "")
+                    json_posts.append({
+                        "id": f"instagram_{uid}",
+                        "platform": "instagram",
+                        "platform_label": "Instagram",
+                        "title": str(item.get("title") or "Instagram新着投稿"),
+                        "published_at": published_at,
+                        "thumbnail": image_urls[0],
+                        "url": link or "https://www.instagram.com/official_me_i_/",
+                    })
+            except (requests.RequestException, ValueError, TypeError) as e:
+                print(f"Instagram JSON feed failed: {e}")
+
+    print(f"Instagram JSON image posts: {len(json_posts)}")
+
     # 1つのRSSが取得できても、そこで打ち切らない。
     # InstagramBridgeのインスタンスごとにカルーセル（画像+動画）の
     # 表現が異なるため、利用できるフィードを全部集めて統合する。
