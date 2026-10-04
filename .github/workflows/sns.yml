@@ -119,6 +119,9 @@ jobs:
         if: always()
         run: |
           docker logs rss-bridge 2>&1 | tail -n 120 || true
+          echo "=== Raw InstagramBridge response ==="
+          curl --fail --silent --show-error "http://127.0.0.1:3000/?action=display&bridge=InstagramBridge&context=Username&u=63262311010&media_type=all&direct_links=on&format=Json" | head -c 8000 || true
+          echo
 
       - name: Stop private RSS-Bridge
         if: always()
