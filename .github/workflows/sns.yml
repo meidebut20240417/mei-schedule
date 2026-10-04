@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - "sns.py"
+      - ".github/workflows/sns.yml"
 
   schedule:
     - cron: "*/5 * * * *"
