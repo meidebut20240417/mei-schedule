@@ -67,6 +67,7 @@ INSTAGRAM_RSS_BRIDGE_BASE_URLS = [
         "INSTAGRAM_RSS_BRIDGE_BASE_URLS",
         ",".join(
             [
+                "https://rssbridge.sciunto.org",
                 "https://rss-bridge.org/bridge01",
                 "https://rssbridge.flossboxin.org.in",
                 "https://rss-bridge.sans-nuage.fr",
@@ -742,14 +743,19 @@ def get_instagram_posts(limit=15):
         f"{RSSHUB_BASE_URL}/instagram/2/user/{INSTAGRAM_USERNAME}",
     ]
 
-    feed_urls.extend(
-        (
+    for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS:
+        feed_urls.append(
             f"{base}/?action=display&bridge=InstagramBridge"
             f"&context=Username&u={INSTAGRAM_USERNAME}"
             f"&media_type=all&direct_links=on&format=Atom"
         )
-        for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS
-    )
+        # InstagramBridgeの「画像」指定も別経路として試す。
+        # mixed media投稿が全体をvideo扱いされた場合の救済用。
+        feed_urls.append(
+            f"{base}/?action=display&bridge=InstagramBridge"
+            f"&context=Username&u={INSTAGRAM_USERNAME}"
+            f"&media_type=image&direct_links=on&format=Atom"
+        )
 
     # 1つのRSSが取得できても、そこで打ち切らない。
     # InstagramBridgeのインスタンスごとにカルーセル（画像+動画）の
