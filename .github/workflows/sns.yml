@@ -1,0 +1,110 @@
+name: SNS Update
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "sns.py"
+      - ".github/workflows/sns.yml"
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sns-update
+  cancel-in-progress: true
+
+jobs:
+  update-sns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests instaloader
+
+      - name: Fetch YouTube, X and Instagram posts
+        env:
+          YOUTUBE_API_KEY: "unused"
+          RSSHUB_BASE_URL: "https://rsshub.cmyr.dev"
+          INSTAGRAM_RSS_BRIDGE_PRIVATE: "1"
+          INSTAGRAM_RSS_BRIDGE_BASE_URLS: "https://rss-bridge.org/bridge01"
+        run: |
+          python - <<'PY'
+          import json, os, re, xml.etree.ElementTree as ET
+          from datetime import datetime, timezone, timedelta
+          import requests
+
+          os.environ["YOUTUBE_API_KEY"] = "unused"
+          import sns
+
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"}
+          CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
+          JST = timezone(timedelta(hours=9))
+
+          def youtube():
+              url = f"https://www.youtube.com/feeds/videos.xml?channel_id={CHANNEL_ID}"
+              root = ET.fromstring(requests.get(url, headers=HEADERS, timeout=30).content)
+              ns = {"a": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015"}
+              out = []
+              for e in root.findall("a:entry", ns)[:15]:
+                  vid = e.findtext("yt:videoId", "", ns)
+                  out.append({
+                      "id": f"youtube_{vid}",
+                      "platform": "youtube",
+                      "platform_label": "YouTube",
+                      "title": e.findtext("a:title", "", ns) or "YouTube新着動画",
+                      "published_at": e.findtext("a:published", "", ns) or "",
+                      "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                      "url": f"https://www.youtube.com/watch?v={vid}",
+                  })
+              return out
+
+          def key(p):
+              try:
+                  d = datetime.fromisoformat(p.get("published_at", "").replace("Z", "+00:00"))
+                  return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+              except (ValueError, TypeError):
+                  return datetime.min.replace(tzinfo=timezone.utc)
+
+          posts = youtube() + sns.get_x_posts(limit=15) + sns.get_instagram_posts(limit=15)
+          posts.sort(key=key, reverse=True)
+          posts = posts[:15]
+
+          with open("sns.json", "w", encoding="utf-8") as f:
+              json.dump({"generated_at": datetime.now(JST).isoformat(), "posts": posts}, f, ensure_ascii=False, indent=2)
+
+          print(f"YouTube: {sum(p['platform'] == 'youtube' for p in posts)}")
+          print(f"X: {sum(p['platform'] == 'x' for p in posts)}")
+          print(f"Instagram: {sum(p['platform'] == 'instagram' for p in posts)}")
+          print(f"Final posts: {len(posts)}")
+          PY
+
+      - name: Commit sns.json if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sns.json
+          if git diff --cached --quiet; then
+            echo "No SNS changes."
+            exit 0
+          fi
+          git commit -m "Update SNS data"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then exit 0; fi
+            else
+              git checkout --theirs sns.json
+              git add sns.json
+              GIT_EDITOR=true git rebase --continue
+              if git push origin HEAD:main; then exit 0; fi
+            fi
+            sleep 3
+          done
+          exit 1
