@@ -26,20 +26,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Restore Instagram RSS-Bridge cache
+        uses: actions/cache@v4
         with:
-          python-version: "3.12"
+          path: ${{ runner.temp }}/rss-bridge-cache
+          key: instagram-rss-bridge-cache-${{ github.run_id }}
+          restore-keys: |
+            instagram-rss-bridge-cache-
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests instaloader
-
-      - name: Start private RSS-Bridge for Instagram
+      - name: Set up private RSS-Bridge for Instagram
         env:
-          INSTAGRAM_SESSION_ID: \${{ secrets.INSTAGRAM_SESSION_ID }}
-          INSTAGRAM_DS_USER_ID: \${{ secrets.INSTAGRAM_DS_USER_ID }}
+          INSTAGRAM_SESSION_ID: ${{ secrets.INSTAGRAM_SESSION_ID }}
+          INSTAGRAM_DS_USER_ID: ${{ secrets.INSTAGRAM_DS_USER_ID }}
         run: |
           set -euo pipefail
 
@@ -49,6 +47,7 @@ jobs:
           fi
 
           mkdir -p "$RUNNER_TEMP/rss-bridge-config"
+          mkdir -p "$RUNNER_TEMP/rss-bridge-cache"
 
           cat > "$RUNNER_TEMP/rss-bridge-config/config.ini.php" <<'EOF'
           ; <?php exit; ?>
@@ -59,11 +58,12 @@ jobs:
 
           [cache]
           type = "file"
+          path = "/cache"
 
           [InstagramBridge]
           session_id = "__INSTAGRAM_SESSION_ID__"
           ds_user_id = "__INSTAGRAM_DS_USER_ID__"
-          cache_timeout = 300
+          cache_timeout = 900
           EOF
 
           python - <<'PY'
@@ -79,16 +79,10 @@ jobs:
 
           docker pull rssbridge/rss-bridge:latest
 
-          docker run -d \
-            --name rss-bridge \
-            --publish 127.0.0.1:3000:80 \
-            --volume "$RUNNER_TEMP/rss-bridge-config:/config" \
-            rssbridge/rss-bridge:latest
+          docker run -d             --name rss-bridge             --publish 127.0.0.1:3000:80             --volume "$RUNNER_TEMP/rss-bridge-config:/config"             --volume "$RUNNER_TEMP/rss-bridge-cache:/cache"             rssbridge/rss-bridge:latest
 
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if curl --fail --silent --show-error \
-              "http://127.0.0.1:3000/?action=display&bridge=InstagramBridge&context=Username&u=official_me_i_&media_type=all&direct_links=on&format=Json" \
-              -o "$RUNNER_TEMP/instagram-rss-bridge-check.json"; then
+            if curl --fail --silent --show-error               "http://127.0.0.1:3000/?action=display&bridge=InstagramBridge&context=Username&u=official_me_i_&media_type=all&direct_links=on&format=Json"               -o "$RUNNER_TEMP/instagram-rss-bridge-check.json"; then
               echo "Private RSS-Bridge is responding."
               exit 0
             fi
@@ -101,10 +95,15 @@ jobs:
           docker logs rss-bridge || true
           exit 1
 
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests instaloader
+
       - name: Fetch YouTube, X and Instagram posts
         env:
-          YOUTUBE_API_KEY: \${{ secrets.YOUTUBE_API_KEY }}
-          RSSHUB_BASE_URL: \${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
           INSTAGRAM_RSS_BRIDGE_BASE_URLS: "http://127.0.0.1:3000"
         run: python sns.py
 
