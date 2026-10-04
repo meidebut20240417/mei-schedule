@@ -72,6 +72,12 @@ INSTAGRAM_RSS_BRIDGE_BASE_URLS = [
                 "https://rssbridge.flossboxin.org.in",
                 "https://rss-bridge.sans-nuage.fr",
                 "https://rb.ash.fail",
+                "https://wtf.roflcopter.fr/rss-bridge",
+                "https://rss-bridge.iter.tw",
+                "https://vjl.org",
+                "https://rss-bridge.nomadic.name",
+                "https://brccmacbeth.com",
+                "https://www.bridge.mergis.net",
             ]
         ),
     ).split(",")
@@ -963,7 +969,7 @@ def get_instagram_posts(limit=15):
             candidates.append(item)
 
     # 混在投稿が古い位置にあっても取りこぼさないよう、十分大きな候補数を見る。
-    for item in candidates[:min(max(limit * 10, 100), 150)]:
+    for item in candidates[:min(max(limit * 20, 200), 300)]:
         link = _feed_value(
             item,
             ["link", "{http://www.w3.org/2005/Atom}link"],
@@ -1009,8 +1015,10 @@ def get_instagram_posts(limit=15):
             }
         )
 
-        if len(posts) >= limit:
-            break
+        # ここでは打ち切らない。
+        # 複数のRSS-Bridgeインスタンスを統合した後で日時順に並べることで、
+        # あるインスタンスの古い15件が、別インスタンスの新しい投稿を
+        # 押し出してしまうのを防ぐ。
 
     # JSON/Atomに加えてInstaloaderも使う。
     # 公開プロフィールを直接読む別経路なので、RSS-Bridge側の障害時にも
