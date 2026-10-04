@@ -48,6 +48,7 @@ jobs:
 
           mkdir -p "$RUNNER_TEMP/rss-bridge-config"
           mkdir -p "$RUNNER_TEMP/rss-bridge-cache"
+          chmod 777 "$RUNNER_TEMP/rss-bridge-cache"
 
           cat > "$RUNNER_TEMP/rss-bridge-config/config.ini.php" <<'EOF'
           ; <?php exit; ?>
@@ -58,6 +59,8 @@ jobs:
 
           [cache]
           type = "file"
+
+          [FileCache]
           path = "/cache"
 
           [InstagramBridge]
@@ -105,6 +108,7 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
           INSTAGRAM_RSS_BRIDGE_BASE_URLS: "http://127.0.0.1:3000"
+          INSTAGRAM_RSS_BRIDGE_PRIVATE: "1"
         run: python sns.py
 
       - name: Stop private RSS-Bridge
