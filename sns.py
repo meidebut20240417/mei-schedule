@@ -217,12 +217,16 @@ def _parse_feed(url, timeout=30):
 def _image_urls_from_item(item, ns):
     image_urls = []
 
-    for element in item.findall("media:content", ns):
+    # RSS-Bridge may nest media:content and may omit the MIME type.
+    for element in item.findall(".//media:content", ns):
         media_type = (element.attrib.get("type") or "").lower()
+        medium = (element.attrib.get("medium") or "").lower()
         media_url = element.attrib.get("url", "")
 
         if media_url and (
             media_type.startswith("image/")
+            or medium == "image"
+            or "pbs.twimg.com/media/" in media_url.lower()
             or any(
                 media_url.lower().split("?")[0].endswith(ext)
                 for ext in (".jpg", ".jpeg", ".png", ".webp")
@@ -235,18 +239,14 @@ def _image_urls_from_item(item, ns):
         if media_url:
             image_urls.append(media_url)
 
-    for element in item.findall("enclosure"):
+    for element in item.findall(".//enclosure"):
         media_type = (element.attrib.get("type") or "").lower()
+        medium = (element.attrib.get("medium") or "").lower()
         media_url = element.attrib.get("url", "")
-
-        if media_url and not media_type:
-            media_type = "image/" if any(
-                media_url.lower().split("?")[0].endswith(ext)
-                for ext in (".jpg", ".jpeg", ".png", ".webp")
-            ) else ""
 
         if media_url and (
             media_type.startswith("image/")
+            or medium == "image"
             or "pbs.twimg.com/media/" in media_url.lower()
             or any(
                 media_url.lower().split("?")[0].endswith(ext)
@@ -261,9 +261,11 @@ def _image_urls_from_item(item, ns):
         if element.tag.endswith("link"):
             rel = (element.attrib.get("rel") or "").lower()
             media_type = (element.attrib.get("type") or "").lower()
+            medium = (element.attrib.get("medium") or "").lower()
             href = element.attrib.get("href", "")
             if href and rel == "enclosure" and (
                 media_type.startswith("image/")
+                or medium == "image"
                 or "pbs.twimg.com/media/" in href.lower()
                 or any(
                     href.lower().split("?")[0].endswith(ext)
@@ -283,6 +285,7 @@ def _image_urls_from_item(item, ns):
                 },
             )
         ),
+        _xml_text(item.find("{http://www.w3.org/2005/Atom}content")),
     ]
 
     for html in html_parts:
@@ -303,21 +306,45 @@ def _image_urls_from_item(item, ns):
             lowered = tag.lower()
             src_pos = lowered.find("src=")
 
-            if src_pos != -1:
-                quote = tag[src_pos + 4:src_pos + 5]
+            for attribute in ("src", "data-src", "data-original", "href"):
+                marker = f"{attribute}="
+                attr_pos = lowered.find(marker)
+
+                if attr_pos == -1:
+                    continue
+
+                quote = tag[attr_pos + len(marker):attr_pos + len(marker) + 1]
 
                 if quote in {'"', "'"}:
-                    value_start = src_pos + 5
+                    value_start = attr_pos + len(marker) + 1
                     value_end = tag.find(quote, value_start)
 
                     if value_end != -1:
-                        image_urls.append(
-                            tag[value_start:value_end]
-                        )
+                        image_urls.append(tag[value_start:value_end])
+
+            srcset_pos = lowered.find("srcset=")
+            if srcset_pos != -1:
+                quote = tag[srcset_pos + 7:srcset_pos + 8]
+
+                if quote in {'"', "'"}:
+                    value_start = srcset_pos + 8
+                    value_end = tag.find(quote, value_start)
+
+                    if value_end != -1:
+                        for candidate in tag[value_start:value_end].split(","):
+                            image_urls.append(candidate.strip().split(" ")[0])
 
             pos = end_tag + 1
 
-    return list(dict.fromkeys(image_urls))
+    for element in item.iter():
+        for value in element.attrib.values():
+            if "pbs.twimg.com/media/" in value.lower():
+                image_urls.append(value)
+
+    return list(dict.fromkeys(
+        url for url in image_urls
+        if url and url.startswith(("http://", "https://"))
+    ))
 
 
 def _feed_items(root):
