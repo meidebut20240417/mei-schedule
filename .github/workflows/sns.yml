@@ -26,81 +26,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Restore Instagram RSS-Bridge cache
+      - name: Restore Instagram result cache
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/rss-bridge-cache
-          key: instagram-rss-bridge-cache-${{ github.run_id }}
+          path: ${{ runner.temp }}/instagram-cache
+          key: instagram-post-cache-${{ github.run_id }}
           restore-keys: |
-            instagram-rss-bridge-cache-
-
-      - name: Set up private RSS-Bridge for Instagram
-        env:
-          INSTAGRAM_SESSION_ID: ${{ secrets.INSTAGRAM_SESSION_ID }}
-          INSTAGRAM_DS_USER_ID: ${{ secrets.INSTAGRAM_DS_USER_ID }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$INSTAGRAM_SESSION_ID" ] || [ -z "$INSTAGRAM_DS_USER_ID" ]; then
-            echo "Instagram RSS-Bridge secrets are not configured."
-            exit 1
-          fi
-
-          mkdir -p "$RUNNER_TEMP/rss-bridge-config"
-          mkdir -p "$RUNNER_TEMP/rss-bridge-cache"
-          chmod 777 "$RUNNER_TEMP/rss-bridge-cache"
-
-          cat > "$RUNNER_TEMP/rss-bridge-config/config.ini.php" <<'EOF'
-          ; <?php exit; ?>
-          [system]
-          env = "prod"
-          enabled_bridges[] = InstagramBridge
-          timezone = "UTC"
-
-          [cache]
-          type = "file"
-
-          [FileCache]
-          path = "/cache"
-
-          [InstagramBridge]
-          session_id = "__INSTAGRAM_SESSION_ID__"
-          ds_user_id = "__INSTAGRAM_DS_USER_ID__"
-          cache_timeout = 900
-          EOF
-
-          python - <<'PY'
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["RUNNER_TEMP"]) / "rss-bridge-config" / "config.ini.php"
-          text = path.read_text(encoding="utf-8")
-          text = text.replace("__INSTAGRAM_SESSION_ID__", os.environ["INSTAGRAM_SESSION_ID"])
-          text = text.replace("__INSTAGRAM_DS_USER_ID__", os.environ["INSTAGRAM_DS_USER_ID"])
-          path.write_text(text, encoding="utf-8")
-          PY
-
-          docker pull rssbridge/rss-bridge:latest
-
-          curl --fail --silent --show-error https://raw.githubusercontent.com/RSS-Bridge/rss-bridge/master/bridges/InstagramBridge.php -o "$RUNNER_TEMP/InstagramBridge.php"
-          sed -i 's/if (!$data) {/if ($data) {/' "$RUNNER_TEMP/InstagramBridge.php"
-          sed -i '0,/if (!$userId) {/s//if ($userId) {/' "$RUNNER_TEMP/InstagramBridge.php"
-
-          docker run -d             --name rss-bridge             --publish 127.0.0.1:3000:80             --volume "$RUNNER_TEMP/rss-bridge-config:/config"             --volume "$RUNNER_TEMP/rss-bridge-cache:/cache"             --volume "$RUNNER_TEMP/InstagramBridge.php:/app/bridges/InstagramBridge.php:ro"             rssbridge/rss-bridge:latest
-
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if curl --fail --silent --show-error               "http://127.0.0.1:3000/?action=display&bridge=InstagramBridge&context=Username&u=official_me_i_&media_type=all&direct_links=on&format=Json"               -o "$RUNNER_TEMP/instagram-rss-bridge-check.json"; then
-              echo "Private RSS-Bridge is responding."
-              exit 0
-            fi
-
-            echo "Waiting for RSS-Bridge to start (attempt $attempt/10)..."
-            sleep 3
-          done
-
-          echo "RSS-Bridge did not become ready."
-          docker logs rss-bridge || true
-          exit 1
+            instagram-post-cache-
 
       - name: Install Python dependencies
         run: |
@@ -111,21 +43,11 @@ jobs:
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
-          INSTAGRAM_RSS_BRIDGE_BASE_URLS: "http://127.0.0.1:3000"
-          INSTAGRAM_RSS_BRIDGE_PRIVATE: "1"
+          INSTAGRAM_CACHED: "1"
+          INSTAGRAM_CACHE_FILE: ${{ runner.temp }}/instagram-cache/posts.json
+          INSTAGRAM_SESSION_ID: ${{ secrets.INSTAGRAM_SESSION_ID }}
+          INSTAGRAM_DS_USER_ID: ${{ secrets.INSTAGRAM_DS_USER_ID }}
         run: python sns.py
-
-      - name: Diagnose private RSS-Bridge
-        if: always()
-        run: |
-          docker logs rss-bridge 2>&1 | tail -n 120 || true
-          echo "=== Raw InstagramBridge response ==="
-          curl --fail --silent --show-error "http://127.0.0.1:3000/?action=display&bridge=InstagramBridge&context=Username&u=63262311010&media_type=all&direct_links=on&format=Json" | head -c 8000 || true
-          echo
-
-      - name: Stop private RSS-Bridge
-        if: always()
-        run: docker rm -f rss-bridge 2>/dev/null || true
 
       - name: Commit sns.json if changed
         run: |
