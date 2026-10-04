@@ -27,7 +27,7 @@ HEADERS = {
 }
 
 # X: Nitter系はインスタンスごとに停止する可能性があるため複数候補。
-X_NITTER_BASE_URLS = [
+# X: RSS-BridgeのTwitter Bridgeも追加。Nitterより安定する公開インスタンスがある場合はこちらを先に試す。\nX_RSS_BRIDGE_BASE_URLS = [\n    value.rstrip("/")\n    for value in os.environ.get(\n        "X_RSS_BRIDGE_BASE_URLS",\n        ",".join([\n            "https://rss-bridge.org/bridge01",\n            "https://www.rssbridge.wdavery.com",\n            "https://www.bridge.mergis.net",\n        ]),\n    ).split(",")\n    if value.strip()\n]\n\nX_NITTER_BASE_URLS = [
     value.rstrip("/")
     for value in os.environ.get(
         "X_NITTER_BASE_URLS",
@@ -225,6 +225,12 @@ def _image_urls_from_item(item, ns):
         media_type = (element.attrib.get("type") or "").lower()
         media_url = element.attrib.get("url", "")
 
+        if media_url and not media_type:
+            media_type = "image/" if any(
+                media_url.lower().split("?")[0].endswith(ext)
+                for ext in (".jpg", ".jpeg", ".png", ".webp")
+            ) else ""
+
         if media_url and (
             media_type.startswith("image/")
             or any(
@@ -233,6 +239,18 @@ def _image_urls_from_item(item, ns):
             )
         ):
             image_urls.append(media_url)
+
+    # Atomの <link rel="enclosure" type="image/*" href="..."> にも対応。
+    for element in item:
+        if element.tag.endswith("link"):
+            rel = (element.attrib.get("rel") or "").lower()
+            media_type = (element.attrib.get("type") or "").lower()
+            href = element.attrib.get("href", "")
+            if href and (
+                rel == "enclosure"
+                and media_type.startswith("image/")
+            ):
+                image_urls.append(href)
 
     # RSS-Bridge/NitterがHTML内に画像を置く場合にも対応。
     html_parts = [
@@ -318,6 +336,22 @@ def get_x_posts(limit=15):
         f"{RSSHUB_BASE_URL}/twitter/media/{X_USERNAME}",
     ]
 
+    # RSS-Bridge Twitter Bridge: 公開インスタンスごとにURL形式が異なる場合があるため
+    # 旧Twitter Bridge形式とUsernameコンテキストの両方を候補にする。
+    for base in X_RSS_BRIDGE_BASE_URLS:
+        feed_urls.extend([
+            (
+                f"{base}/?action=display&bridge=Twitter"
+                f"&context=Username&u={X_USERNAME}"
+                f"&format=Atom&without_replies=on&without_retweets=on"
+            ),
+            (
+                f"{base}/?action=display&bridge=Twitter"
+                f"&context=Username&u={X_USERNAME}"
+                f"&format=Atom"
+            ),
+        ])
+
     feed_urls.extend(
         f"{base}/{X_USERNAME}/media/rss"
         for base in X_NITTER_BASE_URLS
@@ -390,8 +424,9 @@ def get_instagram_posts(limit=15):
 
     feed_urls.extend(
         (
-            f"{base}/?action=display&bridge=Instagram"
-            f"&media_type=all&format=Atom&u={INSTAGRAM_USERNAME}"
+            f"{base}/?action=display&bridge=InstagramBridge"
+            f"&context=Username&u={INSTAGRAM_USERNAME}"
+            f"&media_type=all&direct_links=on&format=Atom"
         )
         for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS
     )
