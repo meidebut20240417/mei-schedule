@@ -835,6 +835,22 @@ def _get_instagram_posts_instaloader(limit=15):
 
 
 def get_instagram_posts(limit=15):
+    if os.environ.get("INSTAGRAM_CACHED") == "1":
+        cache_file = os.environ.get("INSTAGRAM_CACHE_FILE", "")
+        if cache_file and os.path.exists(cache_file):
+            try:
+                cached = json.loads(open(cache_file, encoding="utf-8").read())
+                fetched_at = datetime.fromisoformat(cached.get("fetched_at", ""))
+                age = (datetime.now(timezone.utc) - fetched_at).total_seconds()
+                posts = cached.get("posts", [])
+                if age < 900 and isinstance(posts, list):
+                    print(f"Instagram cache hit: age={int(age)}s, posts={len(posts)}")
+                    return posts[:limit]
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as e:
+                print(f"Instagram cache read failed: {e}")
+
+        return _get_instagram_posts_instaloader(limit=limit)
+
     # GitHub Actionsでは認証済みのローカルRSS-Bridgeを使う。
     # このモードでは公開RSS-BridgeやInstagramへの直接アクセスへフォールバックしない。
     private_rss_bridge = os.environ.get(
