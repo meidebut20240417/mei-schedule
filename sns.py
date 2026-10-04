@@ -339,6 +339,34 @@ def _image_urls_from_item(item, ns):
 
             pos = end_tag + 1
 
+        # Instagramの画像+動画投稿では、画像が <video poster>、
+        # <source>、または og:image の meta に入る場合がある。
+        # これらも画像付き投稿として拾う。
+        for tag_match in re.finditer(
+            r"<(?:video|source|meta)\\b[^>]*>",
+            html,
+            flags=re.IGNORECASE,
+        ):
+            tag = tag_match.group(0)
+            for attribute in ("poster", "src", "content"):
+                match = re.search(
+                    rf"\\b{attribute}\\s*=\\s*([\\\"'])(.*?)\\1",
+                    tag,
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+                if not match:
+                    continue
+                value = match.group(2).strip()
+                lowered = value.lower()
+                if attribute in {"poster", "content"} and not (
+                    any(lowered.split("?")[0].endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))
+                    or "cdninstagram" in lowered
+                    or "fbcdn" in lowered
+                    or "instagram" in lowered
+                ):
+                    continue
+                image_urls.append(value)
+
     for element in item.iter():
         for value in element.attrib.values():
             if "pbs.twimg.com/media/" in value.lower():
