@@ -751,18 +751,22 @@ def get_instagram_posts(limit=15):
         for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS
     )
 
-    root = None
+    # 1つのRSSが取得できても、そこで打ち切らない。
+    # InstagramBridgeのインスタンスごとにカルーセル（画像+動画）の
+    # 表現が異なるため、利用できるフィードを全部集めて統合する。
+    roots = []
 
     for url in feed_urls:
         try:
             print(f"Instagram feed trying: {url}")
             root = _parse_feed(url, timeout=25)
-            print(f"Instagram feed succeeded: {url}")
-            break
+            item_count = len(_feed_items(root))
+            print(f"Instagram feed succeeded: {url} ({item_count} items)")
+            roots.append(root)
         except (requests.RequestException, ET.ParseError) as e:
             print(f"Instagram feed failed: {e}")
 
-    if root is None:
+    if not roots:
         print("Instagram feed: all sources failed")
         print("Instagram image posts: 0")
         return []
@@ -773,9 +777,29 @@ def get_instagram_posts(limit=15):
         "dc": "http://purl.org/dc/elements/1.1/",
     }
 
-    posts = []
+    # 複数フィードをURL/GUID単位で重複排除しながら統合。
+    candidates = []
+    seen = set()
 
-    for item in _feed_items(root)[:min(max(limit * 10, 100), 150)]:
+    for root in roots:
+        for item in _feed_items(root):
+            link = _feed_value(
+                item,
+                ["link", "{http://www.w3.org/2005/Atom}link"],
+            )
+            guid = _feed_value(item, ["guid", "id"])
+            key = guid or link
+
+            if key and key in seen:
+                continue
+
+            if key:
+                seen.add(key)
+
+            candidates.append(item)
+
+    # 混在投稿が古い位置にあっても取りこぼさないよう、十分大きな候補数を見る。
+    for item in candidates[:min(max(limit * 10, 100), 150)]:
         link = _feed_value(
             item,
             ["link", "{http://www.w3.org/2005/Atom}link"],
