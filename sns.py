@@ -1367,6 +1367,19 @@ def get_instagram_posts(limit=15):
         merged_keys.add(key)
         merged_posts.append(post)
 
+    # RSS-Bridgeによっては投稿自体は取得できても日時を返さない場合がある。
+    # その場合だけ公開ミラーから日時を補完する。Instagram本体にはアクセスしない。
+    if bridge_only and merged_posts and not any(post.get("published_at") for post in merged_posts):
+        mirror_posts = _get_instagram_posts_imginn(limit=limit)
+        if mirror_posts:
+            for post in mirror_posts:
+                path = post.get("url", "")
+                if "imginn.com/p/" in path:
+                    shortcode = path.rstrip("/").split("/")[-1]
+                    post["url"] = f"https://www.instagram.com/p/{shortcode}/"
+            merged_posts = mirror_posts
+            print(f"Instagram dates supplemented by public mirror: {len(merged_posts)}")
+
     # Instagram側でも実日時の新しい順にする。
     # 日時不明の投稿を「現在時刻」に偽装しないので、新着トップを汚染しない。
     merged_posts.sort(
