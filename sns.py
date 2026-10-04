@@ -357,7 +357,7 @@ def _image_urls_from_item(item, ns):
             tag = tag_match.group(0)
             for attribute in ("poster", "src", "content"):
                 match = re.search(
-                    rf"\b{attribute}\s*=\s*([\\"\'])(.*?)\1",
+                    rf"""\b{attribute}\s*=\s*(["'])(.*?)\1""",
                     tag,
                     flags=re.IGNORECASE | re.DOTALL,
                 )
