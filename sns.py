@@ -509,6 +509,61 @@ def get_x_posts(limit=15):
     except (requests.RequestException, ValueError) as e:
         print(f"X FxTwitter feed failed: {e}")
 
+    # /media が空でもAPI自体は生きている場合があるため、通常タイムライン
+    # /statuses も追加で試す。特に /media 側の一時障害でX全体を0件扱いしない。
+    fxtwitter_statuses_url = (
+        f"https://api.fxtwitter.com/2/profile/{X_USERNAME}/statuses"
+        f"?count={min(max(limit * 3, 20), 100)}"
+    )
+
+    try:
+        print(f"X FxTwitter statuses trying: {fxtwitter_statuses_url}")
+        response = requests.get(
+            fxtwitter_statuses_url,
+            headers={"User-Agent": "MEI-Link-SNS-Updater/1.0"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results", []) if isinstance(data, dict) else []
+        print(f"X FxTwitter statuses succeeded: {len(results)} items")
+
+        posts = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            media = item.get("media") or {}
+            photos = media.get("photos") or []
+            if not photos:
+                continue
+            image_urls = list(dict.fromkeys(
+                str(photo.get("url") or "")
+                for photo in photos
+                if isinstance(photo, dict) and photo.get("url")
+            ))
+            image_urls = [url for url in image_urls if url.startswith(("http://", "https://"))]
+            if not image_urls:
+                continue
+            published_at = item.get("created_at") or ""
+            post_id = item.get("id") or item.get("url") or f"x_{published_at}_{image_urls[0]}"
+            posts.append({
+                "id": f"x_{post_id}",
+                "platform": "x",
+                "platform_label": "X",
+                "title": item.get("text") or "",
+                "published_at": published_at,
+                "thumbnail": image_urls[0],
+                "url": item.get("url") or f"https://x.com/{X_USERNAME}",
+            })
+            if len(posts) >= limit:
+                break
+
+        print(f"X image posts from statuses: {len(posts)}")
+        if posts:
+            return posts
+    except (requests.RequestException, ValueError) as e:
+        print(f"X FxTwitter statuses failed: {e}")
+
     # FxTwitterが利用できない場合はRSS-Bridge/Nitterへフォールバック。
     # RSS-BridgeのJSON形式は、Twitter Bridgeが生成した
     # enclosures を attachments[].url として保持するため、
@@ -564,7 +619,7 @@ def get_x_posts(limit=15):
                     serialized_item = json.dumps(item, ensure_ascii=False)
                     image_urls.extend(
                         re.findall(
-                            r"https?://pbs\\.twimg\\.com/media/[^\\s\\\"'<>\\\\]+",
+                            r"https?://pbs\.twimg\.com/media/[^\s\"'<>\\]+",
                             serialized_item,
                         )
                     )
@@ -611,7 +666,9 @@ def get_x_posts(limit=15):
                     break
 
             print(f"X image posts: {len(posts)}")
-            return posts
+            if posts:
+                return posts
+            print("X JSON feed returned no image posts; trying next source.")
 
         except (requests.RequestException, ValueError, ET.ParseError) as e:
             print(f"X JSON feed failed: {e}")
