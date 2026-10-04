@@ -27,7 +27,21 @@ HEADERS = {
 }
 
 # X: Nitter系はインスタンスごとに停止する可能性があるため複数候補。
-# X: RSS-BridgeのTwitter Bridgeも追加。Nitterより安定する公開インスタンスがある場合はこちらを先に試す。\nX_RSS_BRIDGE_BASE_URLS = [\n    value.rstrip("/")\n    for value in os.environ.get(\n        "X_RSS_BRIDGE_BASE_URLS",\n        ",".join([\n            "https://rss-bridge.org/bridge01",\n            "https://www.rssbridge.wdavery.com",\n            "https://www.bridge.mergis.net",\n        ]),\n    ).split(",")\n    if value.strip()\n]\n\nX_NITTER_BASE_URLS = [
+# X: RSS-BridgeのTwitter Bridgeも追加。Nitterより安定する公開インスタンスがある場合はこちらを先に試す。
+X_RSS_BRIDGE_BASE_URLS = [
+    value.rstrip("/")
+    for value in os.environ.get(
+        "X_RSS_BRIDGE_BASE_URLS",
+        ",".join([
+            "https://rss-bridge.org/bridge01",
+            "https://www.rssbridge.wdavery.com",
+            "https://www.bridge.mergis.net",
+        ]),
+    ).split(",")
+    if value.strip()
+]
+
+X_NITTER_BASE_URLS = [
     value.rstrip("/")
     for value in os.environ.get(
         "X_NITTER_BASE_URLS",
