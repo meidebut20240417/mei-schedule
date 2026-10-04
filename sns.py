@@ -826,6 +826,19 @@ def _get_instagram_posts_instaloader(limit=15):
             if len(posts) >= limit:
                 break
 
+        cache_file = os.environ.get("INSTAGRAM_CACHE_FILE", "")
+        if os.environ.get("INSTAGRAM_CACHED") == "1" and cache_file and posts:
+            try:
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {"fetched_at": datetime.now(timezone.utc).isoformat(), "posts": posts},
+                        f,
+                        ensure_ascii=False,
+                    )
+                print(f"Instagram cache saved: posts={len(posts)}")
+            except OSError as e:
+                print(f"Instagram cache write failed: {e}")
+
         print(f"Instagram Instaloader image posts: {len(posts)}")
         return posts
 
