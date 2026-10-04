@@ -988,7 +988,7 @@ def _get_instagram_posts_imginn(limit=15):
         html = response.text
 
         post_paths = list(dict.fromkeys(
-            re.findall(r'href=["\\'](/p/[^"\\']+/?)', html, flags=re.IGNORECASE)
+            re.findall(r"""href=["'](/p/[^"']+/?)""", html, flags=re.IGNORECASE)
         ))
         if not post_paths:
             print("Instagram Imginn: no post links found")
@@ -1005,7 +1005,7 @@ def _get_instagram_posts_imginn(limit=15):
             end_pos = min(positions) if positions else min(len(html), current_pos + 12000)
             chunk = html[current_pos:end_pos]
 
-            media_candidates = re.findall(r'https?://[^\\s<>"\']+', chunk, flags=re.IGNORECASE)
+            media_candidates = re.findall(r"""https?://[^\\s<>"']+""", chunk, flags=re.IGNORECASE)
             media_candidates = [
                 value.replace("&amp;", "&")
                 for value in media_candidates
