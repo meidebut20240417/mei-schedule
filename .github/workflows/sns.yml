@@ -96,7 +96,17 @@ jobs:
               instagram_posts = [p for p in previous_posts if p.get("platform") == "instagram"][:15]
               print(f"Instagram fetch returned 0; preserving previous Instagram posts: {len(instagram_posts)}")
 
-          posts = youtube() + x_posts + instagram_posts
+          # 1つのSNSが一時的に大量取得できても、他SNSが全滅しないよう
+          # 各プラットフォームの最新5件を確保してから全体を時系列で並べる。
+          platform_posts = []
+          for platform, source_posts in (
+              ("youtube", youtube()),
+              ("x", x_posts),
+              ("instagram", instagram_posts),
+          ):
+              platform_posts.extend(source_posts[:5])
+
+          posts = platform_posts
           posts.sort(key=key, reverse=True)
           posts = posts[:15]
 
