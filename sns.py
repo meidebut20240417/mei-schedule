@@ -387,6 +387,74 @@ def _get_rss_bridge_json(url, timeout=20):
 
 
 def get_x_posts(limit=15):
+    # FxTwitter API: 公開プロフィールの「メディア投稿」を取得。
+    # /media は画像・動画などのメディア投稿だけを返すため、
+    # media.photos がある投稿だけ採用すれば「画像あり」の条件を
+    # そのまま満たせる。画像+動画も photos が存在すれば採用する。
+    fxtwitter_url = (
+        f"https://api.fxtwitter.com/2/profile/{X_USERNAME}/media"
+        f"?count={min(max(limit * 3, 20), 100)}"
+    )
+
+    try:
+        print(f"X FxTwitter feed trying: {fxtwitter_url}")
+        response = requests.get(
+            fxtwitter_url,
+            headers={"User-Agent": "MEI-Link-SNS-Updater/1.0"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results", []) if isinstance(data, dict) else []
+        print(f"X FxTwitter feed succeeded: {len(results)} items")
+
+        posts = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+
+            media = item.get("media") or {}
+            photos = media.get("photos") or []
+            if not photos:
+                continue
+
+            image_urls = [
+                str(photo.get("url") or "")
+                for photo in photos
+                if isinstance(photo, dict) and photo.get("url")
+            ]
+            image_urls = list(dict.fromkeys(image_urls))
+            if not image_urls:
+                continue
+
+            published_at = item.get("created_at") or ""
+            post_id = item.get("id") or item.get("url") or (
+                f"x_{published_at}_{image_urls[0]}"
+            )
+
+            posts.append(
+                {
+                    "id": f"x_{post_id}",
+                    "platform": "x",
+                    "platform_label": "X",
+                    "title": item.get("text") or "",
+                    "published_at": published_at,
+                    "thumbnail": image_urls[0],
+                    "url": item.get("url") or f"https://x.com/{X_USERNAME}",
+                }
+            )
+
+            if len(posts) >= limit:
+                break
+
+        print(f"X image posts: {len(posts)}")
+        if posts:
+            return posts
+
+    except (requests.RequestException, ValueError) as e:
+        print(f"X FxTwitter feed failed: {e}")
+
+    # FxTwitterが利用できない場合はRSS-Bridge/Nitterへフォールバック。
     # RSS-BridgeのJSON形式は、Twitter Bridgeが生成した
     # enclosures を attachments[].url として保持するため、
     # Atomよりも画像抽出が安定する。
