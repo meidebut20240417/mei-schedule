@@ -1,11 +1,16 @@
 import os
 import json
 import requests
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 API_KEY = os.environ["YOUTUBE_API_KEY"]
 
 CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
+X_USERNAME = "official__ME_I_"
+RSSHUB_BASE_URL = os.environ.get("RSSHUB_BASE_URL", "").rstrip("/")
+INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID", "").strip()
+INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "").strip()
 
 JST = timezone(timedelta(hours=9))
 
@@ -54,9 +59,7 @@ def get_channel():
 
 
 def is_youtube_short(video_id):
-    shorts_url = (
-        f"https://www.youtube.com/shorts/{video_id}"
-    )
+    shorts_url = f"https://www.youtube.com/shorts/{video_id}"
 
     try:
         response = requests.get(
@@ -69,15 +72,11 @@ def is_youtube_short(video_id):
         return "/shorts/" in response.url
 
     except requests.RequestException as e:
-        print(
-            f"Shorts check failed: {video_id}: {e}"
-        )
-
-        # 判定できなかった場合は通常動画扱い
+        print(f"Shorts check failed: {video_id}: {e}")
         return False
 
 
-def get_latest_posts(
+def get_youtube_posts(
     uploads_playlist_id,
     max_results=30,
     output_limit=15,
@@ -96,70 +95,34 @@ def get_latest_posts(
     for item in data.get("items", []):
         snippet = item.get("snippet", {})
         content = item.get("contentDetails", {})
-
         video_id = content.get("videoId")
 
         if not video_id:
             continue
 
         title = snippet.get("title", "")
-
-        print(f"Checking: {title}")
+        print(f"YouTube checking: {title}")
 
         is_short = is_youtube_short(video_id)
-
-        thumbnails = snippet.get(
-            "thumbnails",
-            {}
-        )
+        thumbnails = snippet.get("thumbnails", {})
 
         thumbnail = (
-            thumbnails.get(
-                "maxres",
-                {}
-            ).get("url")
-            or thumbnails.get(
-                "standard",
-                {}
-            ).get("url")
-            or thumbnails.get(
-                "high",
-                {}
-            ).get("url")
-            or thumbnails.get(
-                "medium",
-                {}
-            ).get("url")
-            or thumbnails.get(
-                "default",
-                {}
-            ).get("url")
+            thumbnails.get("maxres", {}).get("url")
+            or thumbnails.get("standard", {}).get("url")
+            or thumbnails.get("high", {}).get("url")
+            or thumbnails.get("medium", {}).get("url")
+            or thumbnails.get("default", {}).get("url")
             or ""
         )
 
         if is_short:
             platform = "youtube-short"
             platform_label = "TikTok / YouTube"
-            url = (
-                "https://www.youtube.com/"
-                f"shorts/{video_id}"
-            )
-
-            print(
-                f"  ADD SHORT: {video_id}"
-            )
-
+            url = f"https://www.youtube.com/shorts/{video_id}"
         else:
             platform = "youtube"
             platform_label = "YouTube"
-            url = (
-                "https://www.youtube.com/"
-                f"watch?v={video_id}"
-            )
-
-            print(
-                f"  ADD NORMAL VIDEO: {video_id}"
-            )
+            url = f"https://www.youtube.com/watch?v={video_id}"
 
         posts.append(
             {
@@ -170,10 +133,7 @@ def get_latest_posts(
                 "title": title,
                 "published_at": content.get(
                     "videoPublishedAt",
-                    snippet.get(
-                        "publishedAt",
-                        ""
-                    ),
+                    snippet.get("publishedAt", ""),
                 ),
                 "thumbnail": thumbnail,
                 "url": url,
@@ -186,6 +146,163 @@ def get_latest_posts(
     return posts
 
 
+def _xml_text(element):
+    if element is None:
+        return ""
+    return "".join(element.itertext()).strip()
+
+
+def get_x_posts(limit=15):
+    if not RSSHUB_BASE_URL:
+        print("X skipped: RSSHUB_BASE_URL is not configured.")
+        return []
+
+    url = f"{RSSHUB_BASE_URL}/twitter/media/{X_USERNAME}"
+
+    try:
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=30,
+        )
+        response.raise_for_status()
+        root = ET.fromstring(response.content)
+    except (requests.RequestException, ET.ParseError) as e:
+        print(f"X RSSHub fetch failed: {e}")
+        return []
+
+    ns = {
+        "media": "http://search.yahoo.com/mrss/",
+        "content": "http://purl.org/rss/1.0/modules/content/",
+        "dc": "http://purl.org/dc/elements/1.1/",
+    }
+
+    posts = []
+
+    for item in root.findall(".//item")[:limit * 2]:
+        link = _xml_text(item.find("link"))
+        guid = _xml_text(item.find("guid"))
+        title = _xml_text(item.find("title"))
+        description = _xml_text(item.find("description"))
+        published_at = _xml_text(item.find("pubDate"))
+
+        image_urls = []
+
+        for element in item.findall("media:content", ns):
+            media_type = (element.attrib.get("type") or "").lower()
+            media_url = element.attrib.get("url", "")
+            if media_url and (
+                media_type.startswith("image/")
+                or any(media_url.lower().split("?")[0].endswith(ext)
+                       for ext in (".jpg", ".jpeg", ".png", ".webp"))
+            ):
+                image_urls.append(media_url)
+
+        for element in item.findall("media:thumbnail", ns):
+            media_url = element.attrib.get("url", "")
+            if media_url:
+                image_urls.append(media_url)
+
+        for element in item.findall("enclosure"):
+            media_type = (element.attrib.get("type") or "").lower()
+            media_url = element.attrib.get("url", "")
+            if media_url and media_type.startswith("image/"):
+                image_urls.append(media_url)
+
+        if not image_urls:
+            continue
+
+        thumbnail = next(iter(dict.fromkeys(image_urls)), "")
+        post_id = guid or link or f"x_{published_at}_{thumbnail}"
+
+        posts.append(
+            {
+                "id": f"x_{post_id}",
+                "platform": "x",
+                "platform_label": "X",
+                "title": title or description,
+                "published_at": published_at,
+                "thumbnail": thumbnail,
+                "url": link or f"https://x.com/{X_USERNAME}",
+            }
+        )
+
+        if len(posts) >= limit:
+            break
+
+    print(f"X image posts: {len(posts)}")
+    return posts
+
+
+def instagram_get(params):
+    response = requests.get(
+        f"https://graph.instagram.com/{INSTAGRAM_USER_ID}/media",
+        params=params,
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def get_instagram_posts(limit=15):
+    if not INSTAGRAM_USER_ID or not INSTAGRAM_ACCESS_TOKEN:
+        print(
+            "Instagram skipped: INSTAGRAM_USER_ID or "
+            "INSTAGRAM_ACCESS_TOKEN is not configured."
+        )
+        return []
+
+    try:
+        data = instagram_get(
+            {
+                "fields": (
+                    "id,caption,media_type,media_url,"
+                    "permalink,timestamp,thumbnail_url"
+                ),
+                "limit": 25,
+                "access_token": INSTAGRAM_ACCESS_TOKEN,
+            }
+        )
+    except requests.RequestException as e:
+        print(f"Instagram API fetch failed: {e}")
+        return []
+
+    posts = []
+
+    for item in data.get("data", []):
+        media_type = item.get("media_type", "")
+        if media_type not in {"IMAGE", "CAROUSEL_ALBUM"}:
+            continue
+
+        thumbnail = item.get("media_url") or item.get("thumbnail_url") or ""
+        if not thumbnail:
+            continue
+
+        caption = (item.get("caption") or "").strip()
+        title = caption.splitlines()[0].strip() if caption else "Instagram新着投稿"
+
+        posts.append(
+            {
+                "id": f"instagram_{item.get('id')}",
+                "platform": "instagram",
+                "platform_label": "Instagram",
+                "title": title,
+                "published_at": item.get("timestamp", ""),
+                "thumbnail": thumbnail,
+                "url": item.get(
+                    "permalink",
+                    "https://www.instagram.com/official_me_i_/",
+                ),
+            }
+        )
+
+        if len(posts) >= limit:
+            break
+
+    print(f"Instagram image posts: {len(posts)}")
+    return posts
+
+
 def main():
     channel = get_channel()
 
@@ -195,24 +312,33 @@ def main():
         ["uploads"]
     )
 
-    posts = get_latest_posts(
+    youtube_posts = get_youtube_posts(
         uploads_playlist_id,
         max_results=30,
         output_limit=15,
     )
 
+    x_posts = get_x_posts(limit=15)
+    instagram_posts = get_instagram_posts(limit=15)
+
+    posts = youtube_posts + x_posts + instagram_posts
+
+    def sort_key(post):
+        value = post.get("published_at", "")
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+    posts.sort(key=sort_key, reverse=True)
+    posts = posts[:15]
+
     output = {
-        "generated_at": datetime.now(
-            JST
-        ).isoformat(),
+        "generated_at": datetime.now(JST).isoformat(),
         "posts": posts,
     }
 
-    with open(
-        "sns.json",
-        "w",
-        encoding="utf-8",
-    ) as f:
+    with open("sns.json", "w", encoding="utf-8") as f:
         json.dump(
             output,
             f,
@@ -220,36 +346,13 @@ def main():
             indent=2,
         )
 
-    normal_count = sum(
-        1
-        for post in posts
-        if post["platform"] == "youtube"
-    )
-
-    short_count = sum(
-        1
-        for post in posts
-        if post["platform"] == "youtube-short"
-    )
-
     print("=" * 50)
-    print("YouTube SNS fetch complete")
-    print(
-        f"Channel: "
-        f"{channel['snippet']['title']}"
-    )
-    print(
-        f"Normal videos: {normal_count}"
-    )
-    print(
-        f"Shorts: {short_count}"
-    )
-    print(
-        f"Total posts: {len(posts)}"
-    )
-    print(
-        "sns.json generated"
-    )
+    print("SNS fetch complete")
+    print(f"YouTube: {len(youtube_posts)}")
+    print(f"X image posts: {len(x_posts)}")
+    print(f"Instagram image posts: {len(instagram_posts)}")
+    print(f"Final posts: {len(posts)}")
+    print("sns.json generated")
     print("=" * 50)
 
 
