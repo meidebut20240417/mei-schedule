@@ -36,6 +36,7 @@ jobs:
           # RSS-Bridge側のキャッシュ/取得経路を利用し、複数の公開インスタンスを
           # フォールバックとして使う。取得不能時は直前のsns.jsonを保持する。
           INSTAGRAM_RSS_BRIDGE_PRIVATE: "0"
+          INSTAGRAM_RSS_BRIDGE_ONLY: "1"
           INSTAGRAM_RSS_BRIDGE_BASE_URLS: "https://rss-bridge.org/bridge01,https://www.rssbridge.wdavery.com,https://www.bridge.mergis.net"
         run: |
           python - <<'PY'
