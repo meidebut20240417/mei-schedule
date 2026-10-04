@@ -247,6 +247,7 @@ def _image_urls_from_item(item, ns):
 
         if media_url and (
             media_type.startswith("image/")
+            or "pbs.twimg.com/media/" in media_url.lower()
             or any(
                 media_url.lower().split("?")[0].endswith(ext)
                 for ext in (".jpg", ".jpeg", ".png", ".webp")
@@ -254,15 +255,20 @@ def _image_urls_from_item(item, ns):
         ):
             image_urls.append(media_url)
 
-    # Atomの <link rel="enclosure" type="image/*" href="..."> にも対応。
+    # Atomの <link rel="enclosure" href="..."> にも対応。
+    # X/RSS-Bridgeでは画像でもtypeがapplication/octet-streamになる場合がある。
     for element in item:
         if element.tag.endswith("link"):
             rel = (element.attrib.get("rel") or "").lower()
             media_type = (element.attrib.get("type") or "").lower()
             href = element.attrib.get("href", "")
-            if href and (
-                rel == "enclosure"
-                and media_type.startswith("image/")
+            if href and rel == "enclosure" and (
+                media_type.startswith("image/")
+                or "pbs.twimg.com/media/" in href.lower()
+                or any(
+                    href.lower().split("?")[0].endswith(ext)
+                    for ext in (".jpg", ".jpeg", ".png", ".webp")
+                )
             ):
                 image_urls.append(href)
 
