@@ -841,9 +841,9 @@ def get_instagram_posts(limit=15):
             print(f"Instagram feed failed: {e}")
 
     if not roots:
-        print("Instagram feed: all sources failed")
-        print("Instagram image posts: 0")
-        return []
+        print("Instagram feed: all Atom sources failed")
+        print(f"Instagram image posts: {len(json_posts)}")
+        return json_posts
 
     ns = {
         "media": "http://search.yahoo.com/mrss/",
