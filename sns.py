@@ -4,6 +4,7 @@ import requests
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 
 API_KEY = os.environ["YOUTUBE_API_KEY"]
 
@@ -763,14 +764,25 @@ def main():
     def sort_key(post):
         value = post.get("published_at", "")
 
+        if not value:
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+        # YouTubeはISO 8601、FxTwitter/RSS-Bridgeは
+        # RFC 2822系の日時を返すことがある。両方を正しく比較する。
         try:
-            return datetime.fromisoformat(
+            parsed = datetime.fromisoformat(
                 value.replace("Z", "+00:00")
             )
         except (ValueError, TypeError):
-            return datetime.min.replace(
-                tzinfo=timezone.utc
-            )
+            try:
+                parsed = parsedate_to_datetime(value)
+            except (TypeError, ValueError, OverflowError):
+                return datetime.min.replace(tzinfo=timezone.utc)
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+
+        return parsed.astimezone(timezone.utc)
 
     posts.sort(key=sort_key, reverse=True)
     posts = posts[:15]
