@@ -10,7 +10,7 @@ API_KEY = os.environ["YOUTUBE_API_KEY"]
 
 CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
 X_USERNAME = "official__ME_I_"
-INSTAGRAM_USERNAME = "63262311010"  # ME:I official Instagram numeric ID
+INSTAGRAM_USERNAME = "official_me_i_"
 
 # まずRSSHubを試し、失敗した場合は代替の公開RSS経路へフォールバック。
 RSSHUB_BASE_URL = os.environ.get(
