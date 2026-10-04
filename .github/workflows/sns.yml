@@ -72,7 +72,27 @@ jobs:
               except (ValueError, TypeError):
                   return datetime.min.replace(tzinfo=timezone.utc)
 
-          posts = youtube() + sns.get_x_posts(limit=15) + sns.get_instagram_posts(limit=15)
+          x_posts = sns.get_x_posts(limit=15)
+          instagram_posts = sns.get_instagram_posts(limit=15)
+
+          # 一時的な外部取得障害で既存のX/Instagram投稿まで消さない。
+          # 新規取得できたプラットフォームは最新値を優先し、0件時だけ直前の値を保持する。
+          previous_posts = []
+          try:
+              with open("sns.json", "r", encoding="utf-8") as old_file:
+                  previous_data = json.load(old_file)
+              previous_posts = previous_data.get("posts", []) if isinstance(previous_data, dict) else []
+          except (OSError, ValueError, TypeError, json.JSONDecodeError):
+              previous_posts = []
+
+          if not x_posts:
+              x_posts = [p for p in previous_posts if p.get("platform") == "x"][:15]
+              print(f"X fetch returned 0; preserving previous X posts: {len(x_posts)}")
+          if not instagram_posts:
+              instagram_posts = [p for p in previous_posts if p.get("platform") == "instagram"][:15]
+              print(f"Instagram fetch returned 0; preserving previous Instagram posts: {len(instagram_posts)}")
+
+          posts = youtube() + x_posts + instagram_posts
           posts.sort(key=key, reverse=True)
           posts = posts[:15]
 
