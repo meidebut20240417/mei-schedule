@@ -54,4 +54,30 @@ jobs:
           fi
 
           git commit -m "Update SNS data"
-          git push
+
+          # Another SNS run may have updated main while this run was fetching data.
+          # Rebase onto the latest main before pushing. If both runs changed only
+          # sns.json, keep this run's freshly generated SNS data.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+            else
+              echo "Rebase conflict detected; keeping this run's generated sns.json."
+              git checkout --theirs sns.json
+              git add sns.json
+              GIT_EDITOR=true git rebase --continue
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+            fi
+
+            echo "Push attempt $attempt failed; retrying..."
+            sleep 3
+          done
+
+          echo "Failed to push sns.json after 5 attempts."
+          exit 1
