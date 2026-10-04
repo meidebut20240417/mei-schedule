@@ -412,9 +412,31 @@ def get_x_posts(limit=15):
             print(f"X JSON feed succeeded: {url} ({len(items)} items)")
 
             posts = []
-            for item in items[:limit * 3]:
+            for item_index, item in enumerate(items[:limit * 3]):
                 attachments = item.get("attachments", []) or []
                 image_urls = []
+
+                # Temporary X diagnostic: show the feed structure without
+                # logging tweet text. This lets us identify where the image
+                # URL is actually exposed by the public RSS-Bridge instance.
+                if item_index == 0:
+                    print("X diagnostic keys:", sorted(item.keys()))
+                    print("X diagnostic attachments type:", type(attachments).__name__)
+                    print("X diagnostic attachments:", repr(attachments)[:4000])
+                    content_html = str(item.get("content_html") or "")
+                    content = str(item.get("content") or "")
+                    serialized_item = json.dumps(item, ensure_ascii=False)
+                    print("X diagnostic content_html has pbs.twimg.com:", "pbs.twimg.com" in content_html)
+                    print("X diagnostic content has pbs.twimg.com:", "pbs.twimg.com" in content)
+                    print("X diagnostic JSON has pbs.twimg.com:", "pbs.twimg.com" in serialized_item)
+                    print(
+                        "X diagnostic attachment URLs:",
+                        [
+                            a.get("url")
+                            for a in attachments
+                            if isinstance(a, dict) and a.get("url")
+                        ][:20],
+                    )
 
                 for attachment in attachments:
                     if not isinstance(attachment, dict):
