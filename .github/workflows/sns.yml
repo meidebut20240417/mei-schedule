@@ -115,6 +115,11 @@ jobs:
           INSTAGRAM_RSS_BRIDGE_PRIVATE: "1"
         run: python sns.py
 
+      - name: Diagnose private RSS-Bridge
+        if: always()
+        run: |
+          docker logs rss-bridge 2>&1 | tail -n 120 || true
+
       - name: Stop private RSS-Bridge
         if: always()
         run: docker rm -f rss-bridge 2>/dev/null || true
