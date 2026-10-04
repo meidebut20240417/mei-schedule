@@ -979,6 +979,8 @@ def _get_instagram_posts_instaloader(limit=15):
 
 
 def get_instagram_posts(limit=15):
+    bridge_only = os.environ.get("INSTAGRAM_RSS_BRIDGE_ONLY", "").lower() in {"1", "true", "yes", "on"}
+
     if os.environ.get("INSTAGRAM_CACHED") == "1":
         cache_file = os.environ.get("INSTAGRAM_CACHE_FILE", "")
         if cache_file and os.path.exists(cache_file):
@@ -995,14 +997,16 @@ def get_instagram_posts(limit=15):
 
         return _get_instagram_posts_instaloader(limit=limit)
 
-    # GitHub Actionsでは認証済みのローカルRSS-Bridgeを使う。
-    # このモードでは公開RSS-BridgeやInstagramへの直接アクセスへフォールバックしない。
+    # GitHub ActionsではRSS-Bridge経由だけで取得できるようにする。
+    # bridge_only=true の場合、Instagram本体への直接アクセス（RSSHub/Instaloader）を禁止する。
     private_rss_bridge = os.environ.get(
         "INSTAGRAM_RSS_BRIDGE_PRIVATE",
         "",
     ).lower() in {"1", "true", "yes", "on"}
 
     if private_rss_bridge:
+        feed_urls = []
+    elif bridge_only:
         feed_urls = []
     else:
         feed_urls = [
@@ -1195,7 +1199,7 @@ def get_instagram_posts(limit=15):
     # 5分ごとのGitHub Actions実行でInstaloaderが毎回Instagramを叩くと、
     # RSS-Bridgeのキャッシュを使う意味がなくなるため。
     instaloader_posts = []
-    if not private_rss_bridge:
+    if not private_rss_bridge and not bridge_only:
         instaloader_posts = _get_instagram_posts_instaloader(limit=limit)
 
     merged_posts = []
