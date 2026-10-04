@@ -3,6 +3,10 @@ name: SNS Update
 on:
   workflow_dispatch:
 
+  push:
+    paths:
+      - "sns.py"
+
   schedule:
     - cron: "*/5 * * * *"
 
