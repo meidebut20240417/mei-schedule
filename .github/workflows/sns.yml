@@ -36,11 +36,81 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests instaloader
 
+      - name: Start private RSS-Bridge for Instagram
+        env:
+          INSTAGRAM_SESSION_ID: \${{ secrets.INSTAGRAM_SESSION_ID }}
+          INSTAGRAM_DS_USER_ID: \${{ secrets.INSTAGRAM_DS_USER_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$INSTAGRAM_SESSION_ID" ] || [ -z "$INSTAGRAM_DS_USER_ID" ]; then
+            echo "Instagram RSS-Bridge secrets are not configured."
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/rss-bridge-config"
+
+          cat > "$RUNNER_TEMP/rss-bridge-config/config.ini.php" <<'EOF'
+          ; <?php exit; ?>
+          [system]
+          env = "prod"
+          enabled_bridges[] = InstagramBridge
+          timezone = "UTC"
+
+          [cache]
+          type = "file"
+
+          [InstagramBridge]
+          session_id = "__INSTAGRAM_SESSION_ID__"
+          ds_user_id = "__INSTAGRAM_DS_USER_ID__"
+          cache_timeout = 300
+          EOF
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "rss-bridge-config" / "config.ini.php"
+          text = path.read_text(encoding="utf-8")
+          text = text.replace("__INSTAGRAM_SESSION_ID__", os.environ["INSTAGRAM_SESSION_ID"])
+          text = text.replace("__INSTAGRAM_DS_USER_ID__", os.environ["INSTAGRAM_DS_USER_ID"])
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          docker pull rssbridge/rss-bridge:latest
+
+          docker run -d \
+            --name rss-bridge \
+            --publish 127.0.0.1:3000:80 \
+            --volume "$RUNNER_TEMP/rss-bridge-config:/config" \
+            rssbridge/rss-bridge:latest
+
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent --show-error \
+              "http://127.0.0.1:3000/?action=display&bridge=InstagramBridge&context=Username&u=official_me_i_&media_type=all&direct_links=on&format=Json" \
+              -o "$RUNNER_TEMP/instagram-rss-bridge-check.json"; then
+              echo "Private RSS-Bridge is responding."
+              exit 0
+            fi
+
+            echo "Waiting for RSS-Bridge to start (attempt $attempt/10)..."
+            sleep 3
+          done
+
+          echo "RSS-Bridge did not become ready."
+          docker logs rss-bridge || true
+          exit 1
+
       - name: Fetch YouTube, X and Instagram posts
         env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          RSSHUB_BASE_URL: ${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
+          YOUTUBE_API_KEY: \${{ secrets.YOUTUBE_API_KEY }}
+          RSSHUB_BASE_URL: \${{ secrets.RSSHUB_BASE_URL || 'https://rsshub.cmyr.dev' }}
+          INSTAGRAM_RSS_BRIDGE_BASE_URLS: "http://127.0.0.1:3000"
         run: python sns.py
+
+      - name: Stop private RSS-Bridge
+        if: always()
+        run: docker rm -f rss-bridge 2>/dev/null || true
 
       - name: Commit sns.json if changed
         run: |
@@ -56,9 +126,6 @@ jobs:
 
           git commit -m "Update SNS data"
 
-          # Another SNS run may have updated main while this run was fetching data.
-          # Rebase onto the latest main before pushing. If both runs changed only
-          # sns.json, keep this run's freshly generated SNS data.
           for attempt in 1 2 3 4 5; do
             git fetch origin main
 
