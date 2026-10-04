@@ -357,7 +357,7 @@ def get_x_posts(limit=15):
             (
                 f"{base}/?action=display&bridge=Twitter"
                 f"&context=Username&u={X_USERNAME}"
-                f"&format=Atom&without_replies=on&without_retweets=on"
+                f"&format=Atom&norep=on&noretweet=on"
             ),
             (
                 f"{base}/?action=display&bridge=Twitter"
@@ -405,11 +405,28 @@ def get_x_posts(limit=15):
 
         image_urls = _image_urls_from_item(item, ns)
 
-        # Xは画像付き投稿だけ採用。動画のみ・テキストのみは除外。
-        if not image_urls:
+        # RSS-BridgeのTwitter BridgeはAtomのenclosureを
+        # application/octet-streamとして出す場合があるため、
+        # Xの画像ホストも明示的に判定する。
+        x_image_urls = []
+        for image_url in image_urls:
+            lowered = image_url.lower()
+            if (
+                "pbs.twimg.com/media/" in lowered
+                or "pbs.twimg.com/media" in lowered
+                or any(
+                    lowered.split("?")[0].endswith(ext)
+                    for ext in (".jpg", ".jpeg", ".png", ".webp")
+                )
+            ):
+                x_image_urls.append(image_url)
+
+        # Xは画像付き投稿だけ採用。
+        # 動画のみ・テキストのみは除外。
+        if not x_image_urls:
             continue
 
-        thumbnail = image_urls[0]
+        thumbnail = x_image_urls[0]
         post_id = guid or link or f"x_{published_at}_{thumbnail}"
 
         posts.append(
