@@ -564,6 +564,67 @@ def get_x_posts(limit=15):
     except (requests.RequestException, ValueError) as e:
         print(f"X FxTwitter statuses failed: {e}")
 
+    # FxTwitterが一時的に応答しない場合の公開タイムライン用フォールバック。
+    # x.md は公開XプロフィールをJSONで返し、内部ではFxTwitter等へ自動フォールバックする。
+    xmd_url = (
+        f"https://x.pcstyle.dev/{X_USERNAME}"
+        f"?format=json&limit={min(max(limit * 2, 20), 100)}"
+    )
+    try:
+        print(f"X x.md feed trying: {xmd_url}")
+        response = requests.get(
+            xmd_url,
+            headers={"User-Agent": "MEI-Link-SNS-Updater/1.0", "Accept": "application/json"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("posts", []) if isinstance(data, dict) else []
+        print(f"X x.md feed succeeded: {len(results)} items")
+        posts = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            media = item.get("media") or []
+            if isinstance(media, dict):
+                media = media.get("all") or media.get("photos") or []
+            image_urls = []
+            for media_item in media if isinstance(media, list) else []:
+                if not isinstance(media_item, dict):
+                    continue
+                image_url = str(
+                    media_item.get("url")
+                    or media_item.get("thumbnail_url")
+                    or media_item.get("thumbnail", {}).get("url") if isinstance(media_item.get("thumbnail"), dict) else ""
+                )
+                if image_url.startswith(("http://", "https://")):
+                    image_urls.append(image_url)
+            # x.md may expose a thumbnail directly on the post object.
+            direct_thumbnail = item.get("thumbnail") or item.get("image")
+            if isinstance(direct_thumbnail, str) and direct_thumbnail.startswith(("http://", "https://")):
+                image_urls.insert(0, direct_thumbnail)
+            image_urls = list(dict.fromkeys(image_urls))
+            if not image_urls:
+                continue
+            published_at = item.get("created_at") or item.get("published_at") or item.get("date") or ""
+            post_id = item.get("id") or item.get("url") or f"x_{published_at}_{image_urls[0]}"
+            posts.append({
+                "id": f"x_{post_id}",
+                "platform": "x",
+                "platform_label": "X",
+                "title": item.get("text") or item.get("title") or "",
+                "published_at": published_at,
+                "thumbnail": image_urls[0],
+                "url": item.get("url") or f"https://x.com/{X_USERNAME}",
+            })
+            if len(posts) >= limit:
+                break
+        print(f"X image posts from x.md: {len(posts)}")
+        if posts:
+            return posts
+    except (requests.RequestException, ValueError, TypeError) as e:
+        print(f"X x.md feed failed: {e}")
+
     # FxTwitterが利用できない場合はRSS-Bridge/Nitterへフォールバック。
     # RSS-BridgeのJSON形式は、Twitter Bridgeが生成した
     # enclosures を attachments[].url として保持するため、
