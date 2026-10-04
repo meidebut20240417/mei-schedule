@@ -34,6 +34,7 @@ X_RSS_BRIDGE_BASE_URLS = [
     for value in os.environ.get(
         "X_RSS_BRIDGE_BASE_URLS",
         ",".join([
+            "https://rssbridge.sciunto.org",
             "https://rss-bridge.org/bridge01",
             "https://www.rssbridge.wdavery.com",
             "https://www.bridge.mergis.net",
