@@ -378,13 +378,110 @@ def _feed_value(item, names):
     return ""
 
 
+def _get_rss_bridge_json(url, timeout=20):
+    response = requests.get(url, headers=HEADERS, timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
 def get_x_posts(limit=15):
+    # RSS-BridgeのJSON形式は、Twitter Bridgeが生成した
+    # enclosures を attachments[].url として保持するため、
+    # Atomよりも画像抽出が安定する。
+    json_feed_urls = []
+    for base in X_RSS_BRIDGE_BASE_URLS:
+        json_feed_urls.extend([
+            (
+                f"{base}/?action=display&bridge=Twitter"
+                f"&context=Username&u={X_USERNAME}"
+                f"&format=Json&norep=on&noretweet=on"
+            ),
+            (
+                f"{base}/?action=display&bridge=Twitter"
+                f"&context=Username&u={X_USERNAME}"
+                f"&format=Json"
+            ),
+        ])
+
+    for url in json_feed_urls:
+        try:
+            print(f"X JSON feed trying: {url}")
+            data = _get_rss_bridge_json(url, timeout=20)
+            items = data.get("items", []) if isinstance(data, dict) else []
+            print(f"X JSON feed succeeded: {url} ({len(items)} items)")
+
+            posts = []
+            for item in items[:limit * 3]:
+                attachments = item.get("attachments", []) or []
+                image_urls = []
+
+                for attachment in attachments:
+                    if not isinstance(attachment, dict):
+                        continue
+                    image_url = str(attachment.get("url") or "")
+                    lowered = image_url.lower()
+                    if (
+                        "pbs.twimg.com/media/" in lowered
+                        or "pbs.twimg.com/media" in lowered
+                        or any(
+                            lowered.split("?")[0].endswith(ext)
+                            for ext in (".jpg", ".jpeg", ".png", ".webp")
+                        )
+                    ):
+                        image_urls.append(image_url)
+
+                # RSS-BridgeのJSON feedでは content_html に画像が
+                # 入る場合もあるので、既存のHTML抽出もフォールバックとして使う。
+                if not image_urls:
+                    content_html = item.get("content_html") or ""
+                    if content_html:
+                        temp_root = ET.fromstring(
+                            f"<root>{content_html}</root>"
+                        )
+                        image_urls = _image_urls_from_item(
+                            temp_root,
+                            {"media": "http://search.yahoo.com/mrss/"},
+                        )
+
+                if not image_urls:
+                    continue
+
+                thumbnail = image_urls[0]
+                published_at = (
+                    item.get("date_modified")
+                    or item.get("date_published")
+                    or ""
+                )
+                post_id = item.get("id") or item.get("url") or (
+                    f"x_{published_at}_{thumbnail}"
+                )
+
+                posts.append(
+                    {
+                        "id": f"x_{post_id}",
+                        "platform": "x",
+                        "platform_label": "X",
+                        "title": item.get("title") or "",
+                        "published_at": published_at,
+                        "thumbnail": thumbnail,
+                        "url": item.get("url") or f"https://x.com/{X_USERNAME}",
+                    }
+                )
+
+                if len(posts) >= limit:
+                    break
+
+            print(f"X image posts: {len(posts)}")
+            return posts
+
+        except (requests.RequestException, ValueError, ET.ParseError) as e:
+            print(f"X JSON feed failed: {e}")
+
+    # JSON形式が使えない公開インスタンスでは従来のAtom/Nitterへフォールバック。
     feed_urls = [
         f"{RSSHUB_BASE_URL}/twitter/media/{X_USERNAME}",
     ]
 
-    # RSS-Bridge Twitter Bridge: 公開インスタンスごとにURL形式が異なる場合があるため
-    # 旧Twitter Bridge形式とUsernameコンテキストの両方を候補にする。
     for base in X_RSS_BRIDGE_BASE_URLS:
         feed_urls.extend([
             (
@@ -438,9 +535,6 @@ def get_x_posts(limit=15):
 
         image_urls = _image_urls_from_item(item, ns)
 
-        # RSS-BridgeのTwitter BridgeはAtomのenclosureを
-        # application/octet-streamとして出す場合があるため、
-        # Xの画像ホストも明示的に判定する。
         x_image_urls = []
         for image_url in image_urls:
             lowered = image_url.lower()
@@ -454,8 +548,6 @@ def get_x_posts(limit=15):
             ):
                 x_image_urls.append(image_url)
 
-        # Xは画像付き投稿だけ採用。
-        # 動画のみ・テキストのみは除外。
         if not x_image_urls:
             continue
 
@@ -479,7 +571,6 @@ def get_x_posts(limit=15):
 
     print(f"X image posts: {len(posts)}")
     return posts
-
 
 def get_instagram_posts(limit=15):
     feed_urls = [
