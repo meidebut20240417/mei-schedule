@@ -415,6 +415,56 @@ def _feed_items(root):
     return root.findall(".//atom:entry", atom_ns)
 
 
+def _normalize_published_at(value):
+    """Normalize ISO/RFC/numeric feed timestamps to UTC ISO 8601."""
+    if value is None:
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    try:
+        numeric = float(raw)
+        if numeric > 1e14:
+            numeric /= 1_000_000
+        elif numeric > 1e11:
+            numeric /= 1_000
+        if numeric > 0:
+            return datetime.fromtimestamp(numeric, timezone.utc).isoformat()
+    except (ValueError, TypeError, OverflowError):
+        pass
+    for candidate in (raw, raw.replace("Z", "+00:00")):
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc).isoformat()
+        except (ValueError, TypeError):
+            pass
+    try:
+        parsed = parsedate_to_datetime(raw)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat()
+    except (TypeError, ValueError, OverflowError):
+        return ""
+
+
+def _clean_feed_text(value):
+    """Turn RSS/Atom HTML-ish text into readable plain text."""
+    if not value:
+        return ""
+    text = re.sub(r"<br\\s*/?>", "\\n", str(value), flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"&nbsp;", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"&amp;", "&", text, flags=re.IGNORECASE)
+    text = re.sub(r"&lt;", "<", text, flags=re.IGNORECASE)
+    text = re.sub(r"&gt;", ">", text, flags=re.IGNORECASE)
+    text = re.sub(r"[ \\t]+", " ", text)
+    text = re.sub(r"\\n[ \\t]+", "\\n", text)
+    text = re.sub(r"\\n{3,}", "\\n\\n", text)
+    return text.strip()
+
+
 def _feed_value(item, names):
     for name in names:
         element = item.find(name)
@@ -1158,15 +1208,22 @@ def get_instagram_posts(limit=15):
                     if not image_urls:
                         continue
                     timestamp = item.get("timestamp")
-                    try:
-                        published_at = datetime.fromtimestamp(float(timestamp), timezone.utc).isoformat() if timestamp else ""
-                    except (TypeError, ValueError, OverflowError):
-                        published_at = str(timestamp or "")
+                    published_at = _normalize_published_at(timestamp)
+                    if not published_at:
+                        published_at = _normalize_published_at(
+                            item.get("pubDate") or item.get("published") or item.get("date")
+                        )
+                    content_text = _clean_feed_text(
+                        item.get("title")
+                        or item.get("description")
+                        or item.get("content")
+                        or ""
+                    )
                     json_posts.append({
                         "id": f"instagram_{uid}",
                         "platform": "instagram",
                         "platform_label": "Instagram",
-                        "title": str(item.get("title") or "Instagram新着投稿"),
+                        "title": content_text[:200] or "Instagram新着投稿",
                         "published_at": published_at,
                         "thumbnail": image_urls[0],
                         "url": link or "https://www.instagram.com/official_me_i_/",
@@ -1241,30 +1298,14 @@ def get_instagram_posts(limit=15):
             item,
             ["pubDate", "dc:date", "published", "updated"],
         )
-        # RSS-Bridgeの一部インスタンスは日時を空欄/独自形式で返す。
-        # 最終sns.jsonの共通ソートで落とされないよう、解釈できない場合は
-        # フィードの掲載順（新しい順）を維持するフォールバック日時を付ける。
-        try:
-            if published_at:
-                parsed_published = datetime.fromisoformat(
-                    published_at.replace("Z", "+00:00")
-                )
-                if parsed_published.tzinfo is None:
-                    parsed_published = parsed_published.replace(tzinfo=timezone.utc)
-                published_at = parsed_published.astimezone(timezone.utc).isoformat()
-            else:
-                raise ValueError("empty published_at")
-        except (ValueError, TypeError):
-            try:
-                parsed_published = parsedate_to_datetime(published_at)
-                if parsed_published.tzinfo is None:
-                    parsed_published = parsed_published.replace(tzinfo=timezone.utc)
-                published_at = parsed_published.astimezone(timezone.utc).isoformat()
-            except (TypeError, ValueError, OverflowError):
-                published_at = (
-                    datetime.now(timezone.utc)
-                    - timedelta(minutes=len(posts))
-                ).isoformat()
+        # RSS-Bridgeの日時はISO/RFC形式が混在するため共通化。
+        # 解釈できない場合は「現在時刻」を入れない。現在時刻にすると
+        # 過去投稿まで新着扱いになってしまうため、空欄のまま保持する。
+        published_at = _normalize_published_at(published_at)
+
+        # JSON側でcaptionが取れないインスタンスでも、Atomのtitle/description
+        # から本文をできるだけ復元する。
+        feed_text = _clean_feed_text(title or description)
 
         image_urls = _image_urls_from_item(item, ns)
 
@@ -1290,7 +1331,7 @@ def get_instagram_posts(limit=15):
                 "id": f"instagram_{post_id}",
                 "platform": "instagram",
                 "platform_label": "Instagram",
-                "title": title or "Instagram新着投稿",
+                "title": feed_text[:200] or "Instagram新着投稿",
                 "published_at": published_at,
                 "thumbnail": thumbnail,
                 "url": link or (
@@ -1326,9 +1367,13 @@ def get_instagram_posts(limit=15):
         merged_keys.add(key)
         merged_posts.append(post)
 
-    # Instagram側でも新しい順にして、呼び出し側へ最大limit件を返す。
+    # Instagram側でも実日時の新しい順にする。
+    # 日時不明の投稿を「現在時刻」に偽装しないので、新着トップを汚染しない。
     merged_posts.sort(
-        key=lambda post: post.get("published_at", ""),
+        key=lambda post: (
+            1 if post.get("published_at") else 0,
+            post.get("published_at", ""),
+        ),
         reverse=True,
     )
     merged_posts = merged_posts[:limit]
