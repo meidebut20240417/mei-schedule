@@ -96,20 +96,12 @@ jobs:
               instagram_posts = [p for p in previous_posts if p.get("platform") == "instagram"][:15]
               print(f"Instagram fetch returned 0; preserving previous Instagram posts: {len(instagram_posts)}")
 
-          # 1つのSNSが一時的に大量取得できても、他SNSが全滅しないよう
-          # 各プラットフォームの最新10件を確保してから全体を時系列で並べる。
-          platform_posts = []
-          for platform, source_posts in (
-              ("youtube", youtube()),
-              ("x", x_posts),
-              ("instagram", instagram_posts),
-          ):
-              platform_posts.extend(source_posts[:10])
-
-          posts = platform_posts
+          # X / YouTube / Instagramを混ぜて、実際の投稿日時で全体を時系列化。
+          # そのうえで「最新10件」だけをアプリへ出す。
+          # どのSNSを優先するかは決めず、純粋な全体時系列にする。
+          posts = youtube()[:15] + x_posts[:15] + instagram_posts[:15]
           posts.sort(key=key, reverse=True)
-          # 3SNS × 10件 = 最大30件を、実際の投稿日時刻で全体時系列にする。
-          posts = posts[:30]
+          posts = posts[:10]
 
           with open("sns.json", "w", encoding="utf-8") as f:
               json.dump({"generated_at": datetime.now(JST).isoformat(), "posts": posts}, f, ensure_ascii=False, indent=2)
