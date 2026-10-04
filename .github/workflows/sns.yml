@@ -32,8 +32,11 @@ jobs:
         env:
           YOUTUBE_API_KEY: "unused"
           RSSHUB_BASE_URL: "https://rsshub.cmyr.dev"
-          INSTAGRAM_RSS_BRIDGE_PRIVATE: "1"
-          INSTAGRAM_RSS_BRIDGE_BASE_URLS: "https://rss-bridge.org/bridge01"
+          # Instagram本体へGitHub Actionsから直接アクセスしない。
+          # RSS-Bridge側のキャッシュ/取得経路を利用し、複数の公開インスタンスを
+          # フォールバックとして使う。取得不能時は直前のsns.jsonを保持する。
+          INSTAGRAM_RSS_BRIDGE_PRIVATE: "0"
+          INSTAGRAM_RSS_BRIDGE_BASE_URLS: "https://rss-bridge.org/bridge01,https://www.rssbridge.wdavery.com,https://www.bridge.mergis.net"
         run: |
           python - <<'PY'
           import json, os, re, xml.etree.ElementTree as ET
