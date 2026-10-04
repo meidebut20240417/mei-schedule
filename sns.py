@@ -367,10 +367,29 @@ def _image_urls_from_item(item, ns):
                     continue
                 image_urls.append(value)
 
+    # Instagram混合投稿では、画像URLが media:thumbnail / enclosure / video poster
+    # のいずれかに入り、拡張子が見えないCDN URLになる場合がある。
+    # 投稿内の全属性を最後の安全網として走査する。
     for element in item.iter():
-        for value in element.attrib.values():
-            if "pbs.twimg.com/media/" in value.lower():
+        for key, value in element.attrib.items():
+            lowered = value.lower()
+            if (
+                "pbs.twimg.com/media/" in lowered
+                or "cdninstagram.com" in lowered
+                or "scontent" in lowered
+                or "fbcdn.net" in lowered
+                or (
+                    any(lowered.split("?")[0].endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))
+                    and lowered.startswith(("http://", "https://"))
+                )
+            ):
                 image_urls.append(value)
+
+    # media:thumbnail がネストされているケースも拾う。
+    for element in item.findall(".//media:thumbnail", ns):
+        value = element.attrib.get("url", "")
+        if value:
+            image_urls.append(value)
 
     return list(dict.fromkeys(
         url for url in image_urls
