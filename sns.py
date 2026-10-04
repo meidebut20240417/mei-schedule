@@ -922,8 +922,18 @@ def get_instagram_posts(limit=15):
         if len(posts) >= limit:
             break
 
-    print(f"Instagram image posts: {len(posts)}")
-    return posts
+    # JSONとAtomの両経路を統合。JSONを優先しつつ、URLが同じ投稿は重複させない。
+    merged_posts = []
+    merged_keys = set()
+    for post in json_posts + posts:
+        key = post.get("url") or post.get("id")
+        if key in merged_keys:
+            continue
+        merged_keys.add(key)
+        merged_posts.append(post)
+
+    print(f"Instagram image posts: {len(merged_posts)}")
+    return merged_posts
 
 
 def main():
