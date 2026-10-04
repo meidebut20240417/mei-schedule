@@ -82,6 +82,10 @@ jobs:
 
           docker pull rssbridge/rss-bridge:latest
 
+          curl --fail --silent --show-error https://raw.githubusercontent.com/RSS-Bridge/rss-bridge/master/bridges/InstagramBridge.php -o "$RUNNER_TEMP/InstagramBridge.php"
+          sed -i 's/if (!$data) {/if ($data) {/' "$RUNNER_TEMP/InstagramBridge.php"
+          sed -i '0,/if (!$userId) {/s//if ($userId) {/' "$RUNNER_TEMP/InstagramBridge.php"
+
           docker run -d             --name rss-bridge             --publish 127.0.0.1:3000:80             --volume "$RUNNER_TEMP/rss-bridge-config:/config"             --volume "$RUNNER_TEMP/rss-bridge-cache:/cache"             rssbridge/rss-bridge:latest
 
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
