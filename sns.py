@@ -8,17 +8,13 @@ API_KEY = os.environ["YOUTUBE_API_KEY"]
 
 CHANNEL_ID = "UCvTsv4KmVuBdECI08_HR87Q"
 X_USERNAME = "official__ME_I_"
+INSTAGRAM_USERNAME = "official_me_i_"
 
-# GitHub Secretで上書き可能。未設定時は公開RSSHub候補を使用。
+# まずRSSHubを試し、失敗した場合は代替の公開RSS経路へフォールバック。
 RSSHUB_BASE_URL = os.environ.get(
     "RSSHUB_BASE_URL",
     "https://rsshub.cmyr.dev",
 ).rstrip("/")
-
-INSTAGRAM_RSSHUB_PATH = os.environ.get(
-    "INSTAGRAM_RSSHUB_PATH",
-    "/instagram/2/user/official_me_i_",
-).strip()
 
 JST = timezone(timedelta(hours=9))
 
@@ -29,6 +25,40 @@ HEADERS = {
         "Chrome/120 Safari/537.36"
     )
 }
+
+# X: Nitter系はインスタンスごとに停止する可能性があるため複数候補。
+X_NITTER_BASE_URLS = [
+    value.rstrip("/")
+    for value in os.environ.get(
+        "X_NITTER_BASE_URLS",
+        ",".join(
+            [
+                "https://nitter.jaydenha.uk",
+                "https://nitter.meowing.monster",
+                "https://nitter.tiekoetter.com",
+                "https://nitter.netbub.com",
+            ]
+        ),
+    ).split(",")
+    if value.strip()
+]
+
+# Instagram: RSSHubに加えてRSS-Bridgeをフォールバック。
+INSTAGRAM_RSS_BRIDGE_BASE_URLS = [
+    value.rstrip("/")
+    for value in os.environ.get(
+        "INSTAGRAM_RSS_BRIDGE_BASE_URLS",
+        ",".join(
+            [
+                "https://rss-bridge.org/bridge01",
+                "https://rssbridge.flossboxin.org.in",
+                "https://rss-bridge.sans-nuage.fr",
+                "https://rb.ash.fail",
+            ]
+        ),
+    ).split(",")
+    if value.strip()
+]
 
 
 def youtube_get(endpoint, params):
@@ -160,19 +190,153 @@ def _xml_text(element):
     return "".join(element.itertext()).strip()
 
 
-def get_x_posts(limit=15):
-    url = f"{RSSHUB_BASE_URL}/twitter/media/{X_USERNAME}"
+def _parse_feed(url, timeout=30):
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    return ET.fromstring(response.content)
 
-    try:
-        response = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=30,
-        )
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-    except (requests.RequestException, ET.ParseError) as e:
-        print(f"X RSSHub fetch failed: {e}")
+
+def _image_urls_from_item(item, ns):
+    image_urls = []
+
+    for element in item.findall("media:content", ns):
+        media_type = (element.attrib.get("type") or "").lower()
+        media_url = element.attrib.get("url", "")
+
+        if media_url and (
+            media_type.startswith("image/")
+            or any(
+                media_url.lower().split("?")[0].endswith(ext)
+                for ext in (".jpg", ".jpeg", ".png", ".webp")
+            )
+        ):
+            image_urls.append(media_url)
+
+    for element in item.findall("media:thumbnail", ns):
+        media_url = element.attrib.get("url", "")
+        if media_url:
+            image_urls.append(media_url)
+
+    for element in item.findall("enclosure"):
+        media_type = (element.attrib.get("type") or "").lower()
+        media_url = element.attrib.get("url", "")
+
+        if media_url and (
+            media_type.startswith("image/")
+            or any(
+                media_url.lower().split("?")[0].endswith(ext)
+                for ext in (".jpg", ".jpeg", ".png", ".webp")
+            )
+        ):
+            image_urls.append(media_url)
+
+    # RSS-Bridge/NitterがHTML内に画像を置く場合にも対応。
+    html_parts = [
+        _xml_text(item.find("description")),
+        _xml_text(
+            item.find(
+                "content:encoded",
+                {
+                    "content": "http://purl.org/rss/1.0/modules/content/",
+                },
+            )
+        ),
+    ]
+
+    for html in html_parts:
+        pos = 0
+
+        while True:
+            pos = html.lower().find("<img", pos)
+
+            if pos == -1:
+                break
+
+            end_tag = html.find(">", pos)
+
+            if end_tag == -1:
+                break
+
+            tag = html[pos:end_tag + 1]
+            lowered = tag.lower()
+            src_pos = lowered.find("src=")
+
+            if src_pos != -1:
+                quote = tag[src_pos + 4:src_pos + 5]
+
+                if quote in {'"', "'"}:
+                    value_start = src_pos + 5
+                    value_end = tag.find(quote, value_start)
+
+                    if value_end != -1:
+                        image_urls.append(
+                            tag[value_start:value_end]
+                        )
+
+            pos = end_tag + 1
+
+    return list(dict.fromkeys(image_urls))
+
+
+def _feed_items(root):
+    # RSS
+    items = root.findall(".//item")
+    if items:
+        return items
+
+    # Atom
+    atom_ns = {"atom": "http://www.w3.org/2005/Atom"}
+    return root.findall(".//atom:entry", atom_ns)
+
+
+def _feed_value(item, names):
+    for name in names:
+        element = item.find(name)
+
+        if element is not None:
+            value = _xml_text(element)
+
+            if value:
+                return value
+
+    # Atom <link href="...">
+    for name in names:
+        element = item.find(name)
+
+        if element is not None and element.attrib.get("href"):
+            return element.attrib["href"]
+
+    return ""
+
+
+def get_x_posts(limit=15):
+    feed_urls = [
+        f"{RSSHUB_BASE_URL}/twitter/media/{X_USERNAME}",
+    ]
+
+    feed_urls.extend(
+        f"{base}/{X_USERNAME}/media/rss"
+        for base in X_NITTER_BASE_URLS
+    )
+
+    root = None
+
+    for url in feed_urls:
+        try:
+            print(f"X feed trying: {url}")
+            root = _parse_feed(url, timeout=20)
+            print(f"X feed succeeded: {url}")
+            break
+        except (requests.RequestException, ET.ParseError) as e:
+            print(f"X feed failed: {e}")
+
+    if root is None:
+        print("X feed: all sources failed")
+        print("X image posts: 0")
         return []
 
     ns = {
@@ -181,41 +345,17 @@ def get_x_posts(limit=15):
 
     posts = []
 
-    for item in root.findall(".//item")[:limit * 2]:
-        link = _xml_text(item.find("link"))
-        guid = _xml_text(item.find("guid"))
-        title = _xml_text(item.find("title"))
-        description = _xml_text(item.find("description"))
-        published_at = _xml_text(item.find("pubDate"))
+    for item in _feed_items(root)[:limit * 3]:
+        link = _feed_value(item, ["link", "{http://www.w3.org/2005/Atom}link"])
+        guid = _feed_value(item, ["guid", "id"])
+        title = _feed_value(item, ["title"])
+        description = _feed_value(item, ["description", "summary"])
+        published_at = _feed_value(
+            item,
+            ["pubDate", "published", "updated"],
+        )
 
-        image_urls = []
-
-        for element in item.findall("media:content", ns):
-            media_type = (element.attrib.get("type") or "").lower()
-            media_url = element.attrib.get("url", "")
-
-            if media_url and (
-                media_type.startswith("image/")
-                or any(
-                    media_url.lower().split("?")[0].endswith(ext)
-                    for ext in (".jpg", ".jpeg", ".png", ".webp")
-                )
-            ):
-                image_urls.append(media_url)
-
-        for element in item.findall("media:thumbnail", ns):
-            media_url = element.attrib.get("url", "")
-            if media_url:
-                image_urls.append(media_url)
-
-        for element in item.findall("enclosure"):
-            media_type = (element.attrib.get("type") or "").lower()
-            media_url = element.attrib.get("url", "")
-
-            if media_url and media_type.startswith("image/"):
-                image_urls.append(media_url)
-
-        image_urls = list(dict.fromkeys(image_urls))
+        image_urls = _image_urls_from_item(item, ns)
 
         # Xは画像付き投稿だけ採用。動画のみ・テキストのみは除外。
         if not image_urls:
@@ -244,23 +384,32 @@ def get_x_posts(limit=15):
 
 
 def get_instagram_posts(limit=15):
-    path = INSTAGRAM_RSSHUB_PATH.strip()
+    feed_urls = [
+        f"{RSSHUB_BASE_URL}/instagram/2/user/{INSTAGRAM_USERNAME}",
+    ]
 
-    if not path.startswith("/"):
-        path = "/" + path
-
-    url = f"{RSSHUB_BASE_URL}{path}"
-
-    try:
-        response = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=30,
+    feed_urls.extend(
+        (
+            f"{base}/?action=display&bridge=Instagram"
+            f"&media_type=all&format=Atom&u={INSTAGRAM_USERNAME}"
         )
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-    except (requests.RequestException, ET.ParseError) as e:
-        print(f"Instagram RSSHub fetch failed: {e}")
+        for base in INSTAGRAM_RSS_BRIDGE_BASE_URLS
+    )
+
+    root = None
+
+    for url in feed_urls:
+        try:
+            print(f"Instagram feed trying: {url}")
+            root = _parse_feed(url, timeout=25)
+            print(f"Instagram feed succeeded: {url}")
+            break
+        except (requests.RequestException, ET.ParseError) as e:
+            print(f"Instagram feed failed: {e}")
+
+    if root is None:
+        print("Instagram feed: all sources failed")
+        print("Instagram image posts: 0")
         return []
 
     ns = {
@@ -271,80 +420,20 @@ def get_instagram_posts(limit=15):
 
     posts = []
 
-    for item in root.findall(".//item")[:limit * 3]:
-        link = _xml_text(item.find("link"))
-        guid = _xml_text(item.find("guid"))
-        title = _xml_text(item.find("title"))
-        description = _xml_text(item.find("description"))
-        published_at = (
-            _xml_text(item.find("pubDate"))
-            or _xml_text(item.find("dc:date", ns))
+    for item in _feed_items(root)[:limit * 3]:
+        link = _feed_value(
+            item,
+            ["link", "{http://www.w3.org/2005/Atom}link"],
+        )
+        guid = _feed_value(item, ["guid", "id"])
+        title = _feed_value(item, ["title"])
+        description = _feed_value(item, ["description", "summary"])
+        published_at = _feed_value(
+            item,
+            ["pubDate", "dc:date", "published", "updated"],
         )
 
-        image_urls = []
-
-        for element in item.findall("media:content", ns):
-            media_type = (element.attrib.get("type") or "").lower()
-            media_url = element.attrib.get("url", "")
-
-            if media_url and (
-                media_type.startswith("image/")
-                or any(
-                    media_url.lower().split("?")[0].endswith(ext)
-                    for ext in (".jpg", ".jpeg", ".png", ".webp")
-                )
-            ):
-                image_urls.append(media_url)
-
-        for element in item.findall("media:thumbnail", ns):
-            media_url = element.attrib.get("url", "")
-            if media_url:
-                image_urls.append(media_url)
-
-        for element in item.findall("enclosure"):
-            media_type = (element.attrib.get("type") or "").lower()
-            media_url = element.attrib.get("url", "")
-
-            if media_url and media_type.startswith("image/"):
-                image_urls.append(media_url)
-
-        # RSSHubがHTML内に画像を置く場合にも対応。
-        for html in (
-            description,
-            _xml_text(item.find("content:encoded", ns)),
-        ):
-            pos = 0
-
-            while True:
-                pos = html.lower().find("<img", pos)
-
-                if pos == -1:
-                    break
-
-                end_tag = html.find(">", pos)
-
-                if end_tag == -1:
-                    break
-
-                tag = html[pos:end_tag + 1]
-                lowered = tag.lower()
-                src_pos = lowered.find("src=")
-
-                if src_pos != -1:
-                    quote = tag[src_pos + 4:src_pos + 5]
-
-                    if quote in {'"', "'"}:
-                        value_start = src_pos + 5
-                        value_end = tag.find(quote, value_start)
-
-                        if value_end != -1:
-                            image_urls.append(
-                                tag[value_start:value_end]
-                            )
-
-                pos = end_tag + 1
-
-        image_urls = list(dict.fromkeys(image_urls))
+        image_urls = _image_urls_from_item(item, ns)
 
         # Instagramは画像付き投稿だけ採用。
         # 画像なしのリール/動画専用投稿は除外。
@@ -352,7 +441,9 @@ def get_instagram_posts(limit=15):
             continue
 
         thumbnail = image_urls[0]
-        post_id = guid or link or f"instagram_{published_at}_{thumbnail}"
+        post_id = guid or link or (
+            f"instagram_{published_at}_{thumbnail}"
+        )
 
         posts.append(
             {
@@ -362,7 +453,9 @@ def get_instagram_posts(limit=15):
                 "title": title or "Instagram新着投稿",
                 "published_at": published_at,
                 "thumbnail": thumbnail,
-                "url": link or "https://www.instagram.com/official_me_i_/",
+                "url": link or (
+                    "https://www.instagram.com/official_me_i_/"
+                ),
             }
         )
 
