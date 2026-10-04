@@ -749,13 +749,15 @@ def get_instagram_posts(limit=15):
             f"&context=Username&u={INSTAGRAM_USERNAME}"
             f"&media_type=all&direct_links=on&format=Atom"
         )
-        # InstagramBridgeの「画像」指定も別経路として試す。
-        # mixed media投稿が全体をvideo扱いされた場合の救済用。
-        feed_urls.append(
-            f"{base}/?action=display&bridge=InstagramBridge"
-            f"&context=Username&u={INSTAGRAM_USERNAME}"
-            f"&media_type=image&direct_links=on&format=Atom"
-        )
+        # RSS-Bridgeの実際の選択肢は picture / multiple。
+        # allだけで混在投稿をvideo扱いするインスタンスがあるため、
+        # picture と multiple も別経路として試す。
+        for media_type in ("picture", "multiple"):
+            feed_urls.append(
+                f"{base}/?action=display&bridge=InstagramBridge"
+                f"&context=Username&u={INSTAGRAM_USERNAME}"
+                f"&media_type={media_type}&direct_links=on&format=Atom"
+            )
 
     # 1つのRSSが取得できても、そこで打ち切らない。
     # InstagramBridgeのインスタンスごとにカルーセル（画像+動画）の
