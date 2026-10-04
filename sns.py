@@ -466,21 +466,24 @@ def _clean_feed_text(value):
 
 
 def _feed_value(item, names):
-    for name in names:
-        element = item.find(name)
+    # RSSの非名前空間要素とAtomの名前空間要素の両方を扱う。
+    # ElementTreeではAtomの <published>/<updated> が
+    # {http://www.w3.org/2005/Atom}published のように保持されるため、
+    # local nameでも照合する。
+    normalized_names = {str(name).split("}")[-1].lower() for name in names}
 
-        if element is not None:
-            value = _xml_text(element)
+    for element in item.iter():
+        local_name = str(element.tag).split("}")[-1].lower()
+        if local_name not in normalized_names:
+            continue
 
-            if value:
-                return value
+        value = _xml_text(element)
+        if value:
+            return value
 
-    # Atom <link href="...">
-    for name in names:
-        element = item.find(name)
-
-        if element is not None and element.attrib.get("href"):
-            return element.attrib["href"]
+        href = element.attrib.get("href", "")
+        if href:
+            return href
 
     return ""
 
