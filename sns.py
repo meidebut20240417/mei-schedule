@@ -343,14 +343,14 @@ def _image_urls_from_item(item, ns):
         # <source>、または og:image の meta に入る場合がある。
         # これらも画像付き投稿として拾う。
         for tag_match in re.finditer(
-            r"<(?:video|source|meta)\\b[^>]*>",
+            r"<(?:video|source|meta)\b[^>]*>",
             html,
             flags=re.IGNORECASE,
         ):
             tag = tag_match.group(0)
             for attribute in ("poster", "src", "content"):
                 match = re.search(
-                    rf"\\b{attribute}\\s*=\\s*([\\\"'])(.*?)\\1",
+                    rf"\b{attribute}\s*=\s*([\\"\'])(.*?)\1",
                     tag,
                     flags=re.IGNORECASE | re.DOTALL,
                 )
