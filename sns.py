@@ -761,6 +761,8 @@ def _get_instagram_posts_instaloader(limit=15):
     try:
         loader = instaloader.Instaloader(
             quiet=True,
+            max_connection_attempts=1,
+            request_timeout=30,
             download_pictures=False,
             download_videos=False,
             download_video_thumbnails=False,
