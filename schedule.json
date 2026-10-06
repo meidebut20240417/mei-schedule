@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-06T15:09:57.409273+09:00",
+  "generated_at": "2026-10-07T03:15:52.396095+09:00",
   "events": [
     {
       "year": 2024,
@@ -8310,7 +8310,11 @@
       "cat": "MAGAZINE",
       "title": "BARFOUT! 2026年8月号",
       "time": "",
-      "members": "ALL",
+      "members": [
+        "miu",
+        "keiko",
+        "tsuzumi"
+      ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1271"
     },
