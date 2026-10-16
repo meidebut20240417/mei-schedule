@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T13:09:16.445717+09:00",
+  "generated_at": "2026-10-16T20:11:29.515642+09:00",
   "events": [
     {
       "year": 2024,
@@ -9822,6 +9822,19 @@
       "members": "ALL",
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1061"
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "day": 23,
+      "cat": "TV",
+      "title": "TBS『ハマダ歌謡祭★オオカミ少年』",
+      "time": "19:00-20:55",
+      "members": [
+        "tsuzumi"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1443"
     },
     {
       "year": 2026,
