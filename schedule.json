@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-19T13:15:32.474414+09:00",
+  "generated_at": "2026-10-19T21:49:56.513891+09:00",
   "events": [
     {
       "year": 2024,
@@ -9835,6 +9835,19 @@
       ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1443"
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "day": 26,
+      "cat": "TV",
+      "title": "NTV『有吉ゼミ』",
+      "time": "19:00-21:00",
+      "members": [
+        "miu"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1438"
     },
     {
       "year": 2026,
