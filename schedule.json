@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-22T20:36:28.296612+09:00",
+  "generated_at": "2026-10-23T02:02:23.628850+09:00",
   "events": [
     {
       "year": 2024,
@@ -679,6 +679,313 @@
       ],
       "note": "",
       "url": "https://me-i.jp/schedule/detail/178"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 1,
+      "cat": "RADIO",
+      "title": "FM大阪『LOVE FLAP』",
+      "time": "11:30-14:00",
+      "members": [
+        "shizuku",
+        "rinon"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/186"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 1,
+      "cat": "RADIO",
+      "title": "FM NACK5『ALL The Feels』",
+      "time": "23:00-23:30",
+      "members": [
+        "ran",
+        "miu",
+        "ayane"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/182"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 1,
+      "cat": "TV",
+      "title": "TBS『よるのブランチ』",
+      "time": "23:56-0:40",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/122"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 2,
+      "cat": "TV",
+      "title": "TBS『よるのブランチ』",
+      "time": "23:56-0:40",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/122"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 2,
+      "cat": "MAGAZINE",
+      "title": "ちゃお 2024年6月号",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/184"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 2,
+      "cat": "MAGAZINE",
+      "title": "りぼん 2024年6月号",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/73"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 3,
+      "cat": "RADIO",
+      "title": "Date FM『Morning Brush』",
+      "time": "7:30-11:00",
+      "members": [
+        "shizuku",
+        "ayane"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/187"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 3,
+      "cat": "LIVE／EVENT",
+      "title": "Rakuten GirlsAward 2024 SPRING/SUMMER",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/888"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 4,
+      "cat": "TV",
+      "title": "NHK『ライブ・エール2024』",
+      "time": "19:30-22:00",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/139"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 7,
+      "cat": "RADIO",
+      "title": "CROSS FM『UP↑ UP↑』",
+      "time": "9:00-12:53",
+      "members": [
+        "momona",
+        "cocoro"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/188"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 10,
+      "cat": "MAGAZINE",
+      "title": "Cuugal 2024年6月号",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/72"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 12,
+      "cat": "LIVE／EVENT",
+      "title": "KCON JAPAN 2024",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/96"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 15,
+      "cat": "BIRTHDAY",
+      "title": "AYANE's Birthday！",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/14"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 16,
+      "cat": "RADIO",
+      "title": "MBSラジオ『Mラジ Music Treasures』",
+      "time": "2:30-5:15",
+      "members": [
+        "suzu",
+        "rinon"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/196"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 24,
+      "cat": "TV",
+      "title": "EX『ミュージックステーション』",
+      "time": "21:00-21:54",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/199"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 27,
+      "cat": "TV",
+      "title": "NTV『THE DANCE DAY』",
+      "time": "19:00-21:54",
+      "members": [
+        "ran"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/193"
+    },
+    {
+      "year": 2024,
+      "month": 5,
+      "day": 30,
+      "cat": "TV",
+      "title": "TX『あのちゃんの電電電波』",
+      "time": "2:00-2:30",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/194"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 6,
+      "cat": "TV",
+      "title": "EX『お願い!ランキングpresentsバズマンTV』",
+      "time": "0:45-1:20",
+      "members": [
+        "cocoro",
+        "tsuzumi"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/220"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 13,
+      "cat": "TV",
+      "title": "EX『お願い!ランキングpresentsバズマンTV』",
+      "time": "0:45-1:20",
+      "members": [
+        "cocoro",
+        "miu"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/221"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 16,
+      "cat": "TV",
+      "title": "EX『チョコプランナー』",
+      "time": "23:55-0:25",
+      "members": [
+        "ran",
+        "shizuku"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/224"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 17,
+      "cat": "TV",
+      "title": "EX『チョコプランナー』",
+      "time": "23:55-0:25",
+      "members": [
+        "ran",
+        "shizuku"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/224"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 26,
+      "cat": "TV",
+      "title": "TX『テレ東ミュージックフェス 2024 夏』",
+      "time": "17:30-21:54",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/225"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 28,
+      "cat": "TV",
+      "title": "CTV『お笑い4コマパーティー ロロロロ』",
+      "time": "0:29-0:54",
+      "members": [
+        "keiko"
+      ],
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/195"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 28,
+      "cat": "LIVE／EVENT",
+      "title": "BEAT AX VOL.4",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/210"
+    },
+    {
+      "year": 2024,
+      "month": 6,
+      "day": 29,
+      "cat": "LIVE／EVENT",
+      "title": "BEAT AX VOL.4",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/210"
     },
     {
       "year": 2024,
