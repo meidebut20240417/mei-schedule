@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-24T06:19:04.144532+09:00",
+  "generated_at": "2026-10-24T13:13:09.338633+09:00",
   "events": [
     {
       "year": 2024,
@@ -9960,6 +9960,50 @@
       "members": "ALL",
       "note": "",
       "url": "https://me-i.jp/schedule/detail/1442"
+    },
+    {
+      "year": 2027,
+      "month": 1,
+      "day": 23,
+      "cat": "LIVE／EVENT",
+      "title": "LAPOSTA 2027＠TOKYO DOME",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1476"
+    },
+    {
+      "year": 2027,
+      "month": 1,
+      "day": 24,
+      "cat": "LIVE／EVENT",
+      "title": "LAPOSTA 2027＠TOKYO DOME",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1476"
+    },
+    {
+      "year": 2027,
+      "month": 2,
+      "day": 6,
+      "cat": "LIVE／EVENT",
+      "title": "LAPOSTA 2027＠KYOCERA DOME OSAKA",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1478"
+    },
+    {
+      "year": 2027,
+      "month": 2,
+      "day": 7,
+      "cat": "LIVE／EVENT",
+      "title": "LAPOSTA 2027＠KYOCERA DOME OSAKA",
+      "time": "",
+      "members": "ALL",
+      "note": "",
+      "url": "https://me-i.jp/schedule/detail/1478"
     }
   ]
 }
